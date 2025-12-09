@@ -27,8 +27,10 @@ import { MCPProvider } from "../../hooks/useMCP"
 
 const rootStore = new RootStore()
 
-// Initialize API bridge for MCP integration (auto-detects WebSocket URL from current host)
-const apiBridge = initializeAPIBridge(rootStore)
+// Initialize API bridge for MCP integration
+// Use VITE_MCP_WS_URL env var for local dev, otherwise auto-detect from current host
+const mcpWsUrl = import.meta.env.VITE_MCP_WS_URL as string | undefined
+const apiBridge = initializeAPIBridge(rootStore, mcpWsUrl)
 
 export function App() {
   return (
