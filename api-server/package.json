@@ -1,0 +1,12 @@
+{
+  "name": "signal-api-server",
+  "version": "1.0.0",
+  "description": "HTTP API server for Signal MCP integration",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
