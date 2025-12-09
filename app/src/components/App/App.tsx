@@ -23,12 +23,12 @@ import { GlobalCSS } from "../Theme/GlobalCSS"
 import { Toast } from "../ui/Toast"
 import { ElectronCallbackHandler } from "./ElectronCallbackHandler"
 import { LocalizationProvider } from "./LocalizationProvider"
+import { MCPProvider } from "../../hooks/useMCP"
 
 const rootStore = new RootStore()
 
-// Initialize API bridge for MCP integration
-const API_BRIDGE_PORT = 3001
-initializeAPIBridge(rootStore, API_BRIDGE_PORT)
+// Initialize API bridge for MCP integration (auto-detects WebSocket URL from current host)
+const apiBridge = initializeAPIBridge(rootStore)
 
 export function App() {
   return (
@@ -42,17 +42,19 @@ export function App() {
                   <ProgressProvider component={ProgressDialog}>
                     <LocalizationProvider>
                       <AuthProvider>
-                        <PianoRollProvider>
-                          <ArrangeViewProvider>
-                            <TempoEditorProvider>
-                              <GlobalCSS />
-                              {isRunningInElectron() && (
-                                <ElectronCallbackHandler />
-                              )}
-                              <RootView />
-                            </TempoEditorProvider>
-                          </ArrangeViewProvider>
-                        </PianoRollProvider>
+                        <MCPProvider bridge={apiBridge}>
+                          <PianoRollProvider>
+                            <ArrangeViewProvider>
+                              <TempoEditorProvider>
+                                <GlobalCSS />
+                                {isRunningInElectron() && (
+                                  <ElectronCallbackHandler />
+                                )}
+                                <RootView />
+                              </TempoEditorProvider>
+                            </ArrangeViewProvider>
+                          </PianoRollProvider>
+                        </MCPProvider>
                       </AuthProvider>
                     </LocalizationProvider>
                   </ProgressProvider>

@@ -14,6 +14,7 @@ import { Localized } from "../../localize/useLocalization"
 import { Tooltip } from "../ui/Tooltip"
 import { EditMenuButton } from "./EditMenuButton"
 import { FileMenuButton } from "./FileMenuButton"
+import { SessionIndicator } from "./SessionIndicator"
 import { UserButton } from "./UserButton"
 
 const Container = styled.div`
@@ -189,6 +190,8 @@ export const Navigation: FC = () => {
       </Tooltip>
 
       <FlexibleSpacer />
+
+      {!isRunningInElectron() && <SessionIndicator />}
 
       {!isRunningInElectron() && (
         <>

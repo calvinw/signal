@@ -2,8 +2,8 @@
  * API Bridge for Signal MCP Integration
  *
  * This module creates a WebSocket connection between the React app
- * and an external API server. The API server handles HTTP requests
- * and forwards them to the React app via WebSocket.
+ * and the MCP server. It generates a session ID that users can share
+ * with Claude to control this specific browser instance.
  */
 
 import RootStore from "../stores/RootStore"
@@ -40,7 +40,21 @@ interface WSMessage {
 }
 
 /**
- * API Bridge class that handles WebSocket communication with the API server
+ * Generate a memorable 4-character session ID (3 letters + 1 digit)
+ */
+function generateSessionId(): string {
+  const letters = 'abcdefghijklmnopqrstuvwxyz'
+  const digits = '0123456789'
+  let id = ''
+  for (let i = 0; i < 3; i++) {
+    id += letters[Math.floor(Math.random() * letters.length)]
+  }
+  id += digits[Math.floor(Math.random() * digits.length)]
+  return id
+}
+
+/**
+ * API Bridge class that handles WebSocket communication with the MCP server
  */
 export class APIBridge {
   private rootStore: RootStore
@@ -49,9 +63,41 @@ export class APIBridge {
   private reconnectInterval: number = 3000
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
-  constructor(rootStore: RootStore, wsPort = 3001) {
+  // Session management
+  public readonly sessionId: string
+  private _connectionStatus: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected'
+  private statusListeners: Set<(status: string) => void> = new Set()
+
+  constructor(rootStore: RootStore, wsUrl?: string) {
     this.rootStore = rootStore
-    this.wsUrl = `ws://localhost:${wsPort}/ws`
+    this.sessionId = generateSessionId()
+
+    // Determine WebSocket URL
+    if (wsUrl) {
+      this.wsUrl = wsUrl
+    } else {
+      // Auto-detect based on current location
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const host = window.location.host
+      this.wsUrl = `${protocol}//${host}/ws`
+    }
+
+    console.log(`[Signal API Bridge] Session ID: ${this.sessionId}`)
+    console.log(`[Signal API Bridge] WebSocket URL: ${this.wsUrl}`)
+  }
+
+  get connectionStatus(): string {
+    return this._connectionStatus
+  }
+
+  private setConnectionStatus(status: 'disconnected' | 'connecting' | 'connected' | 'error') {
+    this._connectionStatus = status
+    this.statusListeners.forEach(listener => listener(status))
+  }
+
+  onStatusChange(listener: (status: string) => void): () => void {
+    this.statusListeners.add(listener)
+    return () => this.statusListeners.delete(listener)
   }
 
   /**
@@ -150,13 +196,15 @@ export class APIBridge {
       // Add new notes
       const addedNotes: number[] = []
       for (const note of request.notes) {
+        // Convert velocity from 0.0-1.0 to 0-127 (MIDI standard)
+        const velocity = Math.round((note.velocity ?? 0.8) * 127)
         const newNote = track.addEvent<NoteEvent>({
           type: "channel",
           subtype: "note",
           noteNumber: note.midi,
           tick: this.quarterNotesToTicks(note.time),
           duration: this.quarterNotesToTicks(note.duration),
-          velocity: note.velocity ?? 0.8
+          velocity: velocity
         })
         addedNotes.push(newNote.id)
       }
@@ -266,7 +314,7 @@ export class APIBridge {
   }
 
   /**
-   * Connect to the API server via WebSocket
+   * Connect to the MCP server via WebSocket with session ID
    */
   connect(): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
@@ -274,11 +322,18 @@ export class APIBridge {
       return
     }
 
+    this.setConnectionStatus('connecting')
+
     try {
-      this.ws = new WebSocket(this.wsUrl)
+      // Append session_id to WebSocket URL
+      const url = new URL(this.wsUrl)
+      url.searchParams.set('session_id', this.sessionId)
+
+      this.ws = new WebSocket(url.toString())
 
       this.ws.onopen = () => {
-        console.log("[Signal API Bridge] Connected to API server")
+        console.log(`[Signal API Bridge] Connected with session ${this.sessionId}`)
+        this.setConnectionStatus('connected')
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer)
           this.reconnectTimer = null
@@ -288,6 +343,12 @@ export class APIBridge {
       this.ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data) as WSMessage
+
+          // Handle ping/pong
+          if ((message as any).type === 'pong') {
+            return
+          }
+
           const response = this.handleMessage(message)
 
           // Send response back with the same ID
@@ -302,14 +363,17 @@ export class APIBridge {
 
       this.ws.onclose = () => {
         console.log("[Signal API Bridge] Disconnected, will retry...")
+        this.setConnectionStatus('disconnected')
         this.scheduleReconnect()
       }
 
       this.ws.onerror = (error) => {
         console.error("[Signal API Bridge] WebSocket error:", error)
+        this.setConnectionStatus('error')
       }
     } catch (error) {
       console.error("[Signal API Bridge] Failed to connect:", error)
+      this.setConnectionStatus('error')
       this.scheduleReconnect()
     }
   }
@@ -339,6 +403,8 @@ export class APIBridge {
       this.ws.close()
       this.ws = null
     }
+
+    this.setConnectionStatus('disconnected')
   }
 }
 
@@ -348,14 +414,21 @@ let bridgeInstance: APIBridge | null = null
 /**
  * Initialize and start the API bridge
  */
-export function initializeAPIBridge(rootStore: RootStore, wsPort = 3001): APIBridge {
+export function initializeAPIBridge(rootStore: RootStore, wsUrl?: string): APIBridge {
   if (bridgeInstance) {
     console.log("[Signal API Bridge] Already initialized")
     return bridgeInstance
   }
 
-  bridgeInstance = new APIBridge(rootStore, wsPort)
+  bridgeInstance = new APIBridge(rootStore, wsUrl)
   bridgeInstance.connect()
+  return bridgeInstance
+}
+
+/**
+ * Get the current bridge instance
+ */
+export function getAPIBridge(): APIBridge | null {
   return bridgeInstance
 }
 

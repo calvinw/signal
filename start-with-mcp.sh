@@ -4,27 +4,26 @@
 echo "Starting Signal with MCP integration..."
 echo ""
 
-# Check if we're in the signal directory
+# Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$SCRIPT_DIR"
 
 # Install API server dependencies if needed
-if [ ! -d "api-server/node_modules" ]; then
+if [ ! -d "$SCRIPT_DIR/api-server/node_modules" ]; then
     echo "Installing API server dependencies..."
-    cd api-server && npm install && cd ..
+    (cd "$SCRIPT_DIR/api-server" && npm install)
 fi
 
 # Start the API server in background
 echo "Starting API server on port 3001..."
-node api-server/server.js &
+node "$SCRIPT_DIR/api-server/server.js" &
 API_PID=$!
 
 # Give it a moment to start
 sleep 1
 
-# Start Signal app
+# Start Signal app (npm start runs turbo dev which starts the app)
 echo "Starting Signal app..."
-npm run dev &
+(cd "$SCRIPT_DIR" && npm start) &
 SIGNAL_PID=$!
 
 echo ""
