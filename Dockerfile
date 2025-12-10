@@ -1,20 +1,55 @@
-ARG NODE_VERSION=lts-alpine
+# Production Dockerfile for Signal with MCP Integration
+# Multi-stage build to optimize image size and security
 
-FROM node:${NODE_VERSION} AS builder
+# Stage 1: Build stage
+FROM node:20-alpine AS builder
 
-WORKDIR /code
+# Set working directory
+WORKDIR /app
 
-COPY . .
-RUN --mount=type=cache,target=/root/.npm npm install && npm run build
+# Install build dependencies (needed for native modules)
+RUN apk add --no-cache python3 make g++
 
-FROM node:${NODE_VERSION} AS runner
+# Copy package files
+COPY package.json package-lock.json turbo.json ./
+COPY app/package.json ./app/
+COPY packages/ ./packages/
 
-WORKDIR /web
+# Install dependencies
+RUN npm ci
 
-RUN --mount=type=cache,target=/root/.npm npm install -global serve@latest
+# Copy source code
+COPY app/ ./app/
 
-COPY --from=builder /code/dist .
+# Build for production
+RUN npm run build:app
 
-EXPOSE 3000
+# Stage 2: Production stage
+FROM python:3.11-slim AS production
 
-CMD [ "serve" ]
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /app
+
+# Copy Python requirements and install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy built files from builder stage
+COPY --from=builder /app/dist ./dist
+
+# Copy Python server files
+COPY mcp-server/signal_mcp_server.py .
+
+# Expose port
+EXPOSE 8080
+
+# Set environment to production
+ENV NODE_ENV=production
+
+# Run the FastAPI server
+CMD ["python", "signal_mcp_server.py"]

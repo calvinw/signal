@@ -2,13 +2,14 @@
   "compilerOptions": {
     "types": [
       "node",
+      "vite/client",
       "webmidi",
       "wicg-file-system-access",
       "vite-plugin-svgr/client"
     ],
     "sourceMap": true,
     "target": "esnext",
-    "module": "es2015",
+    "module": "esnext",
     "esModuleInterop": true,
     "jsx": "react-jsx",
     "jsxImportSource": "@emotion/react",

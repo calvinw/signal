@@ -21,7 +21,7 @@ export const OnBeforeUnload = () => {
               message,
               buttons: [localized["close"], localized["cancel"]],
             })
-            .then((button) => {
+            .then((button: number) => {
               if (button === 0) {
                 window.electronAPI.closeMainWindow()
               }

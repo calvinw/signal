@@ -1,5 +1,64 @@
-.git
-.cache
-.idea
-.vscode
-node_modules
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs (we build inside Docker)
+dist/
+app/dist/
+**/dist/
+
+# Development files
+.git/
+.gitignore
+*.md
+!README.md
+
+# IDE and editor
+.vscode/
+.idea/
+.cache/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Test files
+**/*.test.*
+**/*.spec.*
+coverage/
+.nyc_output/
+
+# Electron (not needed for web deployment)
+electron/
+
+# Firebase (not needed for this deployment)
+firebase.json
+firestore.*
+functions/
+
+# Development scripts
+start-with-mcp.sh
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+mcp-server/.venv/
+mcp-server/uv.lock
+
+# Logs
+*.log
+npm-debug.log*
+
+# Misc
+*.tgz
+*.tar.gz

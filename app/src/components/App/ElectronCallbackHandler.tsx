@@ -7,6 +7,7 @@ import {
   signInWithCredential,
 } from "firebase/auth"
 import { FC } from "react"
+// @ts-ignore - Electron types only available in Electron build
 import { FirebaseCredential } from "../../../../electron/src/FirebaseCredential"
 import { auth } from "../.././firebase/firebase"
 import {

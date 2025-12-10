@@ -2,9 +2,10 @@
 Signal MCP Server - Combined HTTP/WebSocket/MCP Server
 
 A unified server that provides:
-- MCP tools via Streamable HTTP (for Claude and other LLM clients)
+- MCP tools via SSE (for Claude and other LLM clients)
 - WebSocket connections (for Signal browser app)
 - REST API endpoints (for other integrations)
+- Static file serving for Signal app (in production)
 
 Usage:
     python signal_mcp_server.py
@@ -19,9 +20,11 @@ import logging
 import random
 import string
 import asyncio
+from pathlib import Path
 from typing import Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
@@ -365,8 +368,8 @@ async def check_connection(session_id: str = None) -> str:
 # FastAPI Application
 # =============================================================================
 
-# Create MCP ASGI app
-mcp_app = mcp.http_app(transport="streamable-http")
+# Create MCP ASGI app (using SSE transport like Strudel)
+mcp_app = mcp.http_app(transport="sse")
 
 # Create main FastAPI app
 app = FastAPI(title="Signal MCP Server")
@@ -375,9 +378,14 @@ app = FastAPI(title="Signal MCP Server")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS", "PUT"],
+    allow_headers=["Content-Type", "Authorization", "x-api-key", "Upgrade", "Connection", "Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Protocol"],
+    expose_headers=["Content-Type", "Authorization", "x-api-key"],
+    max_age=86400
 )
+
+# Define static build directory (for production)
+STATIC_BUILD_DIR = Path(__file__).parent / "dist"
 
 
 # Health check endpoint
@@ -402,7 +410,8 @@ async def get_status():
         "success": True,
         "data": {
             "total_connections": len(manager.active_connections),
-            "active_sessions": manager.get_session_ids()
+            "active_sessions": manager.get_session_ids(),
+            "static_build": str(STATIC_BUILD_DIR)
         }
     })
 
@@ -444,8 +453,113 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 
-# Mount MCP server at /mcp
-app.mount("/mcp", mcp_app)
+# =============================================================================
+# Static File Serving (Production Mode)
+# =============================================================================
+
+# Serve the main Signal editor at /edit
+@app.get("/edit")
+@app.get("/edit.html")
+async def serve_edit():
+    """Serve the main Signal editor"""
+    index_file = STATIC_BUILD_DIR / "edit.html"
+    if index_file.exists():
+        return FileResponse(index_file, media_type="text/html")
+    else:
+        return HTMLResponse(
+            content="<h1>Signal build not found</h1><p>Run 'npm run build' to build the static files</p>",
+            status_code=503
+        )
+
+# Redirect root to /edit
+@app.get("/")
+async def redirect_to_edit():
+    """Redirect root to Signal editor"""
+    index_file = STATIC_BUILD_DIR / "edit.html"
+    if index_file.exists():
+        return FileResponse(index_file, media_type="text/html")
+    else:
+        return HTMLResponse(
+            content="<h1>Signal MCP Server</h1><p>MCP endpoint available at /sse</p>",
+            status_code=200
+        )
+
+# Serve auth page
+@app.get("/auth")
+@app.get("/auth.html")
+async def serve_auth():
+    """Serve the auth page"""
+    auth_file = STATIC_BUILD_DIR / "auth.html"
+    if auth_file.exists():
+        return FileResponse(auth_file, media_type="text/html")
+    return HTMLResponse(status_code=404)
+
+# Serve community page
+@app.get("/community")
+@app.get("/community.html")
+@app.get("/home")
+@app.get("/profile")
+async def serve_community():
+    """Serve the community page"""
+    community_file = STATIC_BUILD_DIR / "community.html"
+    if community_file.exists():
+        return FileResponse(community_file, media_type="text/html")
+    return HTMLResponse(status_code=404)
+
+# Serve manifest
+@app.get("/manifest.webmanifest")
+async def serve_manifest():
+    manifest_file = STATIC_BUILD_DIR / "manifest.webmanifest"
+    if manifest_file.exists():
+        return FileResponse(manifest_file, media_type="application/manifest+json")
+    return HTMLResponse(status_code=404)
+
+# Serve favicon
+@app.get("/favicon.svg")
+async def serve_favicon():
+    favicon_file = STATIC_BUILD_DIR / "favicon.svg"
+    if favicon_file.exists():
+        return FileResponse(favicon_file, media_type="image/svg+xml")
+    return HTMLResponse(status_code=404)
+
+# Serve service worker
+@app.get("/service-worker.js")
+async def serve_service_worker():
+    sw_file = STATIC_BUILD_DIR / "service-worker.js"
+    if sw_file.exists():
+        return FileResponse(sw_file, media_type="application/javascript")
+    return HTMLResponse(status_code=404)
+
+# Serve workbox files
+@app.get("/workbox-{filename}.js")
+async def serve_workbox(filename: str):
+    workbox_file = STATIC_BUILD_DIR / f"workbox-{filename}.js"
+    if workbox_file.exists():
+        return FileResponse(workbox_file, media_type="application/javascript")
+    return HTMLResponse(status_code=404)
+
+# Serve icon files
+@app.get("/icon-{size}.png")
+async def serve_icon(size: str):
+    icon_file = STATIC_BUILD_DIR / f"icon-{size}.png"
+    if icon_file.exists():
+        return FileResponse(icon_file, media_type="image/png")
+    return HTMLResponse(status_code=404)
+
+# Serve cursor SVG
+@app.get("/cursor-pencil.svg")
+async def serve_cursor():
+    cursor_file = STATIC_BUILD_DIR / "cursor-pencil.svg"
+    if cursor_file.exists():
+        return FileResponse(cursor_file, media_type="image/svg+xml")
+    return HTMLResponse(status_code=404)
+
+# Mount static assets if they exist
+if STATIC_BUILD_DIR.exists() and (STATIC_BUILD_DIR / "assets").exists():
+    app.mount("/assets", StaticFiles(directory=str(STATIC_BUILD_DIR / "assets")), name="assets")
+
+# Mount MCP server at root (must be last)
+app.mount("/", mcp_app)
 
 
 # =============================================================================
@@ -453,22 +567,20 @@ app.mount("/mcp", mcp_app)
 # =============================================================================
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 3001))
+    port = int(os.environ.get("PORT", 8080))
     host = os.environ.get("HOST", "0.0.0.0")
 
     print(f"""
-╔════════════════════════════════════════════════════════════╗
-║              Signal MCP Server                             ║
-╠════════════════════════════════════════════════════════════╣
-║  MCP Endpoint:  http://{host}:{port}/mcp                      ║
-║  WebSocket:     ws://{host}:{port}/ws                         ║
-║  Health Check:  http://{host}:{port}/api/health               ║
-╠════════════════════════════════════════════════════════════╣
-║  For Claude Desktop or other MCP clients, add:             ║
-║  URL: http://localhost:{port}/mcp                             ║
-╠════════════════════════════════════════════════════════════╣
-║  Waiting for Signal browser connections...                 ║
-╚════════════════════════════════════════════════════════════╝
+🎹 Signal MCP Server Starting on port {port}!
+
+🌐 Web Interface: http://localhost:{port}/edit
+🤖 MCP Endpoint:  http://localhost:{port}/sse
+⚡ WebSocket:     ws://localhost:{port}/ws
+📊 Status:        http://localhost:{port}/api/status
+
+📁 Serving static build from: {STATIC_BUILD_DIR}
+
+Ready for both web browsers and Claude integration! 🎯
     """)
 
     uvicorn.run(app, host=host, port=port)

@@ -78,7 +78,13 @@ export class APIBridge {
     } else {
       // Auto-detect based on current location
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const host = window.location.host
+      let host = window.location.host
+
+      // For local development: if on localhost:3000 (dev server), connect to MCP on 8080
+      if (host === 'localhost:3000' || host === '127.0.0.1:3000') {
+        host = 'localhost:8080'
+      }
+
       this.wsUrl = `${protocol}//${host}/ws`
     }
 

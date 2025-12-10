@@ -1,5 +1,7 @@
 import { FC, useEffect, useState } from "react"
+// @ts-ignore - Electron types only available in Electron build
 import { ElectronAPI } from "../../../../electron/src/ElectronAPI"
+// @ts-ignore - Electron types only available in Electron build
 import { FirebaseCredential } from "../../../../electron/src/FirebaseCredential"
 
 declare global {

@@ -133,7 +133,7 @@ export class SoundFontStore {
     for (const scanPath of this.scanPaths) {
       const files = await window.electronAPI.searchSoundFonts(scanPath)
 
-      const newItems = files.map((file) => ({
+      const newItems = files.map((file: string) => ({
         data: <SoundFontItem>{ type: "file", path: file },
         metadata: <Metadata>{ name: basename(file), scanPath },
       }))

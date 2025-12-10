@@ -1,110 +1,426 @@
-# CLAUDE.md
+# Signal MCP Integration
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This is a fork of Signal (web-based music sequencer) with integrated MCP support for AI-assisted music composition.
+
+## Quick Start
+
+### Option 1: Production Mode (Recommended)
+
+Build and run everything on a single server:
+
+```bash
+# Build the Signal app
+npm install
+npm run build:app
+
+# Copy build to mcp-server
+cp -r dist mcp-server/
+
+# Start the server
+cd mcp-server
+uv run python signal_mcp_server.py
+```
+
+This starts a unified server on port 8080:
+- **Signal App:** `http://localhost:8080/edit`
+- **MCP Endpoint:** `http://localhost:8080/sse` (SSE for Claude/AI)
+- **WebSocket:** `ws://localhost:8080/ws` (for Signal browser app)
+- **Health Check:** `http://localhost:8080/api/health`
+
+### Option 2: Development Mode (Hot Reload)
+
+Run two servers for development with hot reload:
+
+```bash
+# Terminal 1: Start MCP Server
+cd mcp-server && uv run python signal_mcp_server.py
+
+# Terminal 2: Start Signal dev server
+npm start
+```
+
+Opens Signal at `http://localhost:3000/edit` with hot reload.
+
+**Note:** The dev server automatically connects to the MCP server on port 8080.
+
+### Connect AI to Signal
+
+For Claude Code CLI:
+```bash
+claude mcp add signal-mcp -t sse http://localhost:8080/sse
+```
+
+### Get the Session ID
+
+When Signal opens, look for the **session ID** displayed in the header (e.g., `abc1`). Share this with the AI so it can control your specific browser instance.
+
+---
+
+## Architecture
+
+```
+┌─────────────────┐         ┌──────────────────────────────────┐
+│  Claude / AI    │         │     MCP Server (Python)          │
+│  (MCP Client)   │◀───────▶│     Port 8080                    │
+└─────────────────┘   SSE   │                                  │
+                            ├─ /edit   (Signal App)            │
+                            ├─ /sse    (MCP via SSE transport) │
+                            ├─ /ws     (WebSocket)             │
+                            └─ /api/*  (REST endpoints)        │
+                            └──────────────┬───────────────────┘
+                                           │ WebSocket
+                                           ▼
+                            ┌──────────────────────────────────┐
+                            │     Signal Browser App           │
+                            │     (served from /edit)          │
+                            │                                  │
+                            │  ┌─────────────────────────────┐│
+                            │  │ APIBridge.ts                ││
+                            │  │ - WebSocket client          ││
+                            │  │ - Session ID management     ││
+                            │  │ - Note time/tick conversion ││
+                            │  └─────────────────────────────┘│
+                            │                                  │
+                            │  Piano Roll (WebGL)              │
+                            └──────────────────────────────────┘
+```
+
+### Session ID System
+
+Each browser tab gets a unique 4-character session ID (e.g., `abc1`). This enables:
+- Multiple users/browsers simultaneously
+- AI targets specific browser instance
+- No conflicts between sessions
+
+---
+
+## MCP Tools
+
+All tools require a `session_id` parameter to identify which browser to control.
+
+### `get_piano_roll_state(session_id)`
+Read all notes from the piano roll.
+
+```python
+get_piano_roll_state("abc1")
+# Returns: tracks, notes with midi/time/duration/velocity, timebase
+```
+
+### `send_notes(session_id, notes, mode, track_id)`
+Add notes to the piano roll.
+
+```python
+# Add a C major chord
+send_notes("abc1", [
+    {"midi": 60, "duration": 2.0, "time": 0},    # C4
+    {"midi": 64, "duration": 2.0, "time": 0},    # E4
+    {"midi": 67, "duration": 2.0, "time": 0}     # G4
+])
+
+# Replace all notes with new ones
+send_notes("abc1", [...], mode="replace")
+```
+
+### `delete_notes(session_id, notes, track_id)`
+Delete specific notes.
+
+```python
+delete_notes("abc1", [{"midi": 67, "time": 0}])
+```
+
+### `clear_notes(session_id, track_id)`
+Clear all notes from a track.
+
+```python
+clear_notes("abc1")
+```
+
+### `check_connection(session_id)`
+Verify connection status.
+
+```python
+check_connection("abc1")
+# Returns: connected/disconnected status
+```
+
+---
+
+## Note Format
+
+### Time and Duration (Quarter Notes)
+
+All time values use **quarter notes** (beats), not ticks:
+
+| Value | Meaning |
+|-------|---------|
+| `time=0` | Beat 1 (start) |
+| `time=1` | Beat 2 |
+| `time=4` | Beat 5 (measure 2 in 4/4) |
+| `duration=0.25` | 16th note |
+| `duration=0.5` | 8th note |
+| `duration=1.0` | Quarter note |
+| `duration=2.0` | Half note |
+| `duration=4.0` | Whole note |
+
+### MIDI Note Numbers
+
+| Note | MIDI |
+|------|------|
+| C4 (Middle C) | 60 |
+| E4 | 64 |
+| G4 | 67 |
+| C5 | 72 |
+
+### Velocity
+
+- Range: `0.0` to `1.0`
+- Default: `0.8`
+- Converted internally to MIDI 0-127
+
+---
+
+## File Structure
+
+```
+signal/
+├── app/                          # React application
+│   └── src/
+│       ├── services/
+│       │   └── APIBridge.ts      # WebSocket client for MCP
+│       ├── hooks/
+│       │   └── useMCP.tsx        # React hook for session status
+│       └── components/
+│           └── App/App.tsx       # Initializes APIBridge
+│
+├── mcp-server/                   # Python MCP server
+│   ├── signal_mcp_server.py      # Combined MCP + WebSocket server
+│   └── pyproject.toml            # Python dependencies
+│
+├── packages/                     # Shared packages
+│   ├── @signal-app/player        # Audio engine
+│   ├── @signal-app/core          # Core types and utilities
+│   └── ...
+│
+└── start-with-mcp.sh             # Legacy startup script
+```
+
+---
 
 ## Development Commands
 
-### Core Commands
+### App Development
 
-- `npm start` - Start development server (runs turbo dev in parallel for app and static)
-- `npm run build` - Build the entire project (app and static site)
-- `npm test` - Run tests across all packages using turbo
-- `npm run lint` - Run linting across all packages
-- `npm run format` - Format code across all packages
+```bash
+npm start           # Start dev server (turbo dev)
+npm run build       # Build all packages
+npm test            # Run tests
+npm run lint        # Run linter
+```
 
-### App-specific Commands
+### MCP Server
 
-- `npm run dev -w app` - Start dev server for the main app
-- `npm run build -w app` - Build the main React application
-- `npm run test -w app` - Run tests for the app
+```bash
+cd mcp-server
+uv run python signal_mcp_server.py           # Start server
+uv pip install -e .                           # Install in dev mode
+```
 
-### Electron Commands
+### Testing the API
 
-- `npm run dev:electron` - Start Electron development (concurrently runs app dev server and electron)
-- `npm run build:electron` - Build the Electron application
-- `npm run make:electron` - Package Electron app for distribution
-- `npm run make:darwin` - Package for macOS
-- `npm run make:win` - Package for Windows
+```bash
+# Health check
+curl http://localhost:3001/api/health
 
-### Docker
+# List active sessions
+curl http://localhost:3001/api/status
+```
 
-- `docker compose up` - Run the entire application in Docker
+---
 
-## Architecture Overview
+## How It Works
 
-Signal is a web-based music sequencer built with React and TypeScript, with cross-platform Electron support. The project uses a monorepo structure managed by Turbo.
+### Message Flow
 
-### Core Components
+1. **AI sends MCP request** to `/mcp` endpoint
+2. **MCP Server** receives request, looks up session WebSocket
+3. **Server sends WebSocket message** to Signal browser
+4. **APIBridge.ts** in browser handles action (addNotes, deleteNotes, etc.)
+5. **Browser sends response** back via WebSocket
+6. **MCP Server** returns response to AI
 
-**Main Application (`/app`)**
+### Time Conversion
 
-- React application using MobX for state management
-- WebGL-based rendering for performance-critical UI components (piano roll, arrange view)
-- Web Audio API integration for MIDI playback and audio synthesis
-- Modular store architecture with reactive patterns
+The APIBridge converts between:
+- **Quarter notes** (API format) - what AI sends
+- **Ticks** (Signal internal) - stored in song data
 
-**Core Stores (MobX-based):**
+Formula: `ticks = quarterNotes * timebase` (typically timebase=480)
 
-- `RootStore` - Central store managing audio context, synthesizers, and MIDI I/O
-- `SongStore` - Song data and track management
-- `PianoRollStore` - Piano roll editor state
-- `ArrangeViewStore` - Arrange view state and selections
-- `ControlStore` - Control pane for automation data
+---
 
-**Key Views:**
+## Example Session
 
-- Piano Roll Editor - MIDI note editing with WebGL-accelerated rendering
-- Arrange View - Multi-track timeline view
-- Tempo Graph - Tempo automation editing
-- Control Pane - Parameter automation (velocity, pan, etc.)
+```
+AI: "Add a C major chord progression"
 
-**Packages (`/packages`)**
+1. AI calls: check_connection("abc1")
+   → Verifies browser is connected
 
-- `@signal-app/player` - Audio playback engine with SoundFont synthesis
-- `@signal-app/api` - Firebase/Cloud integration for song storage
-- `@signal-app/community` - Community features and song sharing
-- `dialog-hooks` - React hooks for modal dialogs
-- `firebaseui-web-react` - Firebase authentication components
+2. AI calls: get_piano_roll_state("abc1")
+   → Gets current state, learns timebase
 
-**Electron Application (`/electron`)**
+3. AI calls: send_notes("abc1", [
+     {"midi": 60, "duration": 4, "time": 0},
+     {"midi": 64, "duration": 4, "time": 0},
+     {"midi": 67, "duration": 4, "time": 0}
+   ])
+   → C major chord appears in piano roll
 
-- Cross-platform desktop wrapper
-- File system access for local MIDI files
-- Native OS integration (menus, file associations)
+4. AI calls: send_notes("abc1", [
+     {"midi": 65, "duration": 4, "time": 4},
+     {"midi": 69, "duration": 4, "time": 4},
+     {"midi": 72, "duration": 4, "time": 4}
+   ])
+   → F major chord at beat 5
 
-**Static Site (`/static`)**
+User sees chords in Signal, can play them back!
+```
 
-- Marketing/landing page built with Next.js
+---
 
-### Data Architecture
+## Troubleshooting
 
-**Song Structure:**
+### "Session not found"
+- Check that Signal is open at `http://localhost:3000/edit`
+- Verify the session ID matches what's shown in Signal's header
+- Try `check_connection()` without session_id to list active sessions
 
-- `Song` - Top-level container with tracks, tempo, time signatures
-- `Track` - Individual instrument track with MIDI events
-- `TrackEvent` - MIDI events (notes, control changes, program changes)
+### WebSocket won't connect
+- Ensure MCP server is running on port 3001
+- Check browser console for connection errors
+- Verify no firewall blocking WebSocket connections
 
-**Audio Pipeline:**
+### Notes not appearing
+- Confirm session ID is correct
+- Check that you're sending valid MIDI note numbers (0-127)
+- Ensure time/duration are positive numbers
 
-- Web Audio API context management in `RootStore`
-- SoundFont-based synthesis via `SoundFontSynth`
-- Real-time MIDI input/output through `MIDIInput`/`MIDIOutput`
-- Audio rendering for export via `renderAudio`
+### Port conflicts
+- MCP Server: Change with `PORT=3002 uv run python signal_mcp_server.py`
+- Signal App: Configured in vite config
 
-### Technology Stack
+---
 
-- **Frontend:** React 18, TypeScript, MobX, Emotion CSS-in-JS
-- **Audio:** Web Audio API, SoundFont synthesis, WebMIDI API
-- **Graphics:** WebGL for performance-critical rendering
-- **Build:** Vite, Turbo (monorepo), ESLint, Prettier
-- **Desktop:** Electron with Forge
-- **Cloud:** Firebase (auth, storage), Vercel (hosting)
+## Tech Stack
 
-### File Organization
+| Component | Technology |
+|-----------|------------|
+| Signal App | React 18, TypeScript, MobX, Vite |
+| Piano Roll | WebGL |
+| Audio | Web Audio API, SoundFont synthesis |
+| MCP Server | Python, FastMCP, FastAPI, Uvicorn |
+| WebSocket | Python (Starlette), TypeScript (native) |
+| Monorepo | Turbo, npm workspaces |
 
-- Component co-location pattern: related files grouped by feature
-- Shared utilities in `/helpers` and `/services`
-- Domain entities in `/entities` (geometry, beats, selections, transforms)
-- WebGL shaders and rendering code in `/gl` and component-specific shader directories
+---
 
-The application emphasizes real-time performance for audio and UI, using WebGL acceleration for intensive graphics operations and optimized audio scheduling for glitch-free playback.
+## Docker / Production Deployment
+
+### Quick Deploy with Docker
+
+```bash
+# Build and run locally
+docker build -t signal-mcp .
+docker run -p 8080:8080 signal-mcp
+
+# Or use docker compose
+docker compose up --build
+```
+
+The production container serves everything on a single port (8080):
+- **Signal App:** `http://localhost:8080/edit`
+- **MCP Endpoint:** `http://localhost:8080/sse`
+- **WebSocket:** `ws://localhost:8080/ws`
+- **Health Check:** `http://localhost:8080/api/health`
+
+### Deploy to Coolify / Digital Ocean
+
+1. **Connect your Git repository** to Coolify
+2. **Set build settings:**
+   - Build Pack: Docker
+   - Dockerfile location: `./Dockerfile`
+3. **Set environment variables:**
+   - `PORT=8080` (or your preferred port)
+   - `NODE_ENV=production`
+4. **Configure networking:**
+   - Expose port 8080
+   - Enable WebSocket support in reverse proxy
+
+### Architecture (Production)
+
+In production, a single Python server handles everything:
+
+```
+┌─────────────────┐         ┌──────────────────────────────────┐
+│  Claude / AI    │         │     Production Server (Python)   │
+│  (MCP Client)   │◀───────▶│     Port 8080                    │
+└─────────────────┘   SSE   │                                  │
+                            ├─ /edit     (Signal App)          │
+                            ├─ /sse      (MCP Endpoint)        │
+                            ├─ /ws       (WebSocket)           │
+                            └─ /api/*    (REST endpoints)      │
+                            └──────────────┬───────────────────┘
+                                           │ WebSocket
+                                           ▼
+                            ┌──────────────────────────────────┐
+                            │     User's Browser               │
+                            │     (same origin = auto-connect) │
+                            └──────────────────────────────────┘
+```
+
+### Connect AI to Deployed Instance
+
+Once deployed, connect your AI client to the public URL:
+
+```bash
+# For Claude Code CLI
+claude mcp add signal-mcp -t sse https://your-domain.com/sse
+
+# For remote MCP clients
+MCP URL: https://your-domain.com/sse
+```
+
+---
+
+## For AI Assistants
+
+When helping users with this project:
+
+1. **Always get session ID first** - Ask user for their session ID from Signal's header
+2. **Check connection** before making changes - Use `check_connection(session_id)`
+3. **Get state first** - Use `get_piano_roll_state(session_id)` to see current notes
+4. **Use quarter notes** - All time values are in quarter notes, not ticks
+5. **Validate responses** - Check `success` field in returned JSON
+
+### Common Patterns
+
+```python
+# Initialize
+session = "abc1"  # Get from user
+check_connection(session)
+state = get_piano_roll_state(session)
+
+# Add chord
+send_notes(session, [
+    {"midi": 60, "duration": 2, "time": 0},
+    {"midi": 64, "duration": 2, "time": 0},
+    {"midi": 67, "duration": 2, "time": 0}
+])
+
+# Modify (delete + add)
+delete_notes(session, [{"midi": 67, "time": 0}])
+send_notes(session, [{"midi": 69, "duration": 2, "time": 0}])
+
+# Start fresh
+send_notes(session, [...], mode="replace")
+```
