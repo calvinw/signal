@@ -46,3 +46,7 @@ dist
 *.provisionprofile
 .turbo
 *.pfx
+
+# Claude Code configuration
+.claude/
+settings.json
