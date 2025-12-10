@@ -54,6 +54,34 @@ Add the MCP server to Claude Desktop or Claude Code:
 claude mcp add signal --url http://localhost:3001/mcp
 ```
 
+## Helper Scripts for LLM Integration
+
+This repository includes helper scripts to quickly configure your LLM clients (Claude, Codex, Gemini) to connect to a running Signal MCP server. These scripts assume the MCP server is running and accessible at `https://signal.mcp.mathplosion.com/mcp`.
+
+### `add_signal_mcp_to_claude.sh`
+This script configures your Claude client to use the Signal MCP server. It first removes any existing `signal-mcp` configuration and then adds the new one.
+
+To run:
+```bash
+./add_signal_mcp_to_claude.sh
+```
+
+### `add_signal_mcp_to_codex.sh`
+This script configures your Codex client to use the Signal MCP server. It first removes any existing `signal-mcp` configuration and then adds the new one.
+
+To run:
+```bash
+./add_signal_mcp_to_codex.sh
+```
+
+### `add_signal_mcp_to_gemini.sh`
+This script configures your Gemini client to use the Signal MCP server. It first removes any existing `signal-mcp` configuration and then adds the new one.
+
+To run:
+```bash
+./add_signal_mcp_to_gemini.sh
+```
+
 ### 5. Use Claude to control Signal
 
 Tell Claude the session ID from your browser:
