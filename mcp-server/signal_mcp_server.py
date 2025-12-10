@@ -368,11 +368,12 @@ async def check_connection(session_id: str = None) -> str:
 # FastAPI Application
 # =============================================================================
 
-# Create MCP ASGI app (using SSE transport like Strudel)
-mcp_app = mcp.http_app(transport="sse")
+# Create MCP ASGI app (using Streamable HTTP transport)
+mcp_app = mcp.http_app(path="/mcp")
 
-# Create main FastAPI app
-app = FastAPI(title="Signal MCP Server")
+# Create main FastAPI app with MCP lifespan
+# This is required for FastMCP's StreamableHTTPSessionManager to initialize properly
+app = FastAPI(title="Signal MCP Server", lifespan=mcp_app.lifespan)
 
 # Add CORS middleware
 app.add_middleware(
@@ -480,7 +481,7 @@ async def redirect_to_edit():
         return FileResponse(index_file, media_type="text/html")
     else:
         return HTMLResponse(
-            content="<h1>Signal MCP Server</h1><p>MCP endpoint available at /sse</p>",
+            content="<h1>Signal MCP Server</h1><p>MCP endpoint available at /mcp</p>",
             status_code=200
         )
 
@@ -574,7 +575,7 @@ if __name__ == "__main__":
 🎹 Signal MCP Server Starting on port {port}!
 
 🌐 Web Interface: http://localhost:{port}/edit
-🤖 MCP Endpoint:  http://localhost:{port}/sse
+🤖 MCP Endpoint:  http://localhost:{port}/mcp (Streamable HTTP)
 ⚡ WebSocket:     ws://localhost:{port}/ws
 📊 Status:        http://localhost:{port}/api/status
 

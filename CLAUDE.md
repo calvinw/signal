@@ -23,7 +23,7 @@ uv run python signal_mcp_server.py
 
 This starts a unified server on port 8080:
 - **Signal App:** `http://localhost:8080/edit`
-- **MCP Endpoint:** `http://localhost:8080/sse` (SSE for Claude/AI)
+- **MCP Endpoint:** `http://localhost:8080/mcp` (Streamable HTTP for Claude/AI)
 - **WebSocket:** `ws://localhost:8080/ws` (for Signal browser app)
 - **Health Check:** `http://localhost:8080/api/health`
 
@@ -47,7 +47,7 @@ Opens Signal at `http://localhost:3000/edit` with hot reload.
 
 For Claude Code CLI:
 ```bash
-claude mcp add signal-mcp -t sse http://localhost:8080/sse
+claude mcp add signal-mcp -t http http://localhost:8080/mcp
 ```
 
 ### Get the Session ID
@@ -62,9 +62,9 @@ When Signal opens, look for the **session ID** displayed in the header (e.g., `a
 ┌─────────────────┐         ┌──────────────────────────────────┐
 │  Claude / AI    │         │     MCP Server (Python)          │
 │  (MCP Client)   │◀───────▶│     Port 8080                    │
-└─────────────────┘   SSE   │                                  │
+└─────────────────┘  HTTP   │                                  │
                             ├─ /edit   (Signal App)            │
-                            ├─ /sse    (MCP via SSE transport) │
+                            ├─ /mcp    (MCP via Streamable HTTP│
                             ├─ /ws     (WebSocket)             │
                             └─ /api/*  (REST endpoints)        │
                             └──────────────┬───────────────────┘
@@ -339,7 +339,7 @@ docker compose up --build
 
 The production container serves everything on a single port (8080):
 - **Signal App:** `http://localhost:8080/edit`
-- **MCP Endpoint:** `http://localhost:8080/sse`
+- **MCP Endpoint:** `http://localhost:8080/mcp`
 - **WebSocket:** `ws://localhost:8080/ws`
 - **Health Check:** `http://localhost:8080/api/health`
 
@@ -364,9 +364,9 @@ In production, a single Python server handles everything:
 ┌─────────────────┐         ┌──────────────────────────────────┐
 │  Claude / AI    │         │     Production Server (Python)   │
 │  (MCP Client)   │◀───────▶│     Port 8080                    │
-└─────────────────┘   SSE   │                                  │
+└─────────────────┘  HTTP   │                                  │
                             ├─ /edit     (Signal App)          │
-                            ├─ /sse      (MCP Endpoint)        │
+                            ├─ /mcp      (MCP Endpoint)        │
                             ├─ /ws       (WebSocket)           │
                             └─ /api/*    (REST endpoints)      │
                             └──────────────┬───────────────────┘
@@ -384,10 +384,10 @@ Once deployed, connect your AI client to the public URL:
 
 ```bash
 # For Claude Code CLI
-claude mcp add signal-mcp -t sse https://your-domain.com/sse
+claude mcp add signal-mcp -t http https://your-domain.com/mcp
 
 # For remote MCP clients
-MCP URL: https://your-domain.com/sse
+MCP URL: https://your-domain.com/mcp
 ```
 
 ---
