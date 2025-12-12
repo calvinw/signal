@@ -328,39 +328,29 @@ async def clear_notes(session_id: str, track_id: Optional[int] = None) -> str:
 
 
 @mcp.tool()
-async def check_connection(session_id: str = None) -> str:
+async def check_connection(session_id: str) -> str:
     """
-    Check connection status. If session_id provided, checks that specific session.
-    Otherwise returns list of all connected sessions.
+    Check connection status for a specific session.
 
     Args:
-        session_id: Optional session ID to check specific connection
+        session_id: The session ID to check (required)
 
     Returns:
-        Connection status information
+        Connection status for the specified session only
     """
-    if session_id:
-        if manager.session_exists(session_id):
-            return json.dumps({
-                "success": True,
-                "data": {
-                    "status": "connected",
-                    "session_id": session_id,
-                    "message": f"Session {session_id} is connected and ready!"
-                }
-            }, indent=2)
-        else:
-            return json.dumps({
-                "success": False,
-                "error": f"Session '{session_id}' not found. Active sessions: {manager.get_session_ids()}"
-            }, indent=2)
-    else:
+    if manager.session_exists(session_id):
         return json.dumps({
             "success": True,
             "data": {
-                "total_connections": len(manager.active_connections),
-                "active_sessions": manager.get_session_ids()
+                "status": "connected",
+                "session_id": session_id,
+                "message": f"Session {session_id} is connected and ready!"
             }
+        }, indent=2)
+    else:
+        return json.dumps({
+            "success": False,
+            "error": f"Session '{session_id}' not found. Make sure Signal is open with this session ID."
         }, indent=2)
 
 
@@ -378,11 +368,12 @@ app = FastAPI(title="Signal MCP Server", lifespan=mcp_app.lifespan)
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS", "PUT"],
-    allow_headers=["Content-Type", "Authorization", "x-api-key", "Upgrade", "Connection", "Sec-WebSocket-Key", "Sec-WebSocket-Version", "Sec-WebSocket-Protocol"],
-    expose_headers=["Content-Type", "Authorization", "x-api-key"],
-    max_age=86400
+    allow_origins=["*"],  # Or ["https://your-username.github.io"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    # CRITICAL: This allows the browser client to see the session ID
+    expose_headers=["Mcp-Session-Id"]
 )
 
 # Define static build directory (for production)
@@ -397,8 +388,7 @@ async def health_check():
         "success": True,
         "data": {
             "status": "ok",
-            "total_connections": len(manager.active_connections),
-            "active_sessions": manager.get_session_ids()
+            "total_connections": len(manager.active_connections)
         }
     })
 
@@ -411,7 +401,6 @@ async def get_status():
         "success": True,
         "data": {
             "total_connections": len(manager.active_connections),
-            "active_sessions": manager.get_session_ids(),
             "static_build": str(STATIC_BUILD_DIR)
         }
     })

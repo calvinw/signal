@@ -136,11 +136,13 @@ clear_notes("abc1")
 ```
 
 ### `check_connection(session_id)`
-Verify connection status.
+Verify connection status for a specific session.
+
+**Security:** This tool ONLY checks the specified session. It will not list other active sessions.
 
 ```python
 check_connection("abc1")
-# Returns: connected/disconnected status
+# Returns: connected/disconnected status for session "abc1" only
 ```
 
 ---
@@ -291,9 +293,9 @@ User sees chords in Signal, can play them back!
 ## Troubleshooting
 
 ### "Session not found"
-- Check that Signal is open at `http://localhost:3000/edit`
-- Verify the session ID matches what's shown in Signal's header
-- Try `check_connection()` without session_id to list active sessions
+- Check that Signal is open at `http://localhost:3000/edit` (or `http://localhost:8080/edit` in production)
+- Verify the session ID matches exactly what's shown in Signal's header
+- Ensure the browser tab with Signal is still open and connected
 
 ### WebSocket won't connect
 - Ensure MCP server is running on port 3001

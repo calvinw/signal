@@ -134,8 +134,10 @@ Delete specific notes by MIDI number and time.
 ### `clear_notes(session_id, track_id=None)`
 Clear all notes from a track.
 
-### `check_connection(session_id=None)`
-Check if a session is connected, or list all active sessions.
+### `check_connection(session_id)`
+Check if a specific session is connected.
+
+**Security:** This tool ONLY checks the specified session. It will not list other active sessions.
 
 ## Note Format
 

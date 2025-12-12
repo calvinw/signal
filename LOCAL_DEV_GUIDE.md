@@ -181,8 +181,9 @@ cp -r dist mcp-server/
 ### Session Not Found (Claude error)
 
 - Run `/mcp` in Claude Code to reconnect
-- Verify the session ID is correct
-- Check http://localhost:8080/api/status to see active sessions
+- Verify the session ID is correct (case-sensitive)
+- Make sure the Signal browser tab is still open
+- Check the session ID shown in Signal's header matches exactly
 
 ---
 
