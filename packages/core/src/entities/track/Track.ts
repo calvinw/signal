@@ -36,7 +36,6 @@ export class Track {
       addEvent: action,
       addEvents: action,
       name: computed,
-      programNumber: computed,
       isConductorTrack: computed,
       isRhythmTrack: computed,
       color: computed,
@@ -126,10 +125,6 @@ export class Track {
     return getTrackNameEvent(this.events)?.text
   }
 
-  get programNumber() {
-    return getProgramNumberEvent(this.events)?.value
-  }
-
   get color(): SignalTrackColorEvent | undefined {
     return TrackEvents.getColorEvent(this.events)
   }
@@ -138,6 +133,8 @@ export class Track {
     TrackEvents.setColor(color)(this._events)
   }
 
+  getProgramNumber = (tick: number) =>
+    getProgramNumberEvent(this.events, tick)?.value
   getPan = (tick: number) => getPan(this.events, tick)
   getVolume = (tick: number) => getVolume(this.events, tick)
   getTempo = (tick: number) => getTempo(this.events, tick)
@@ -149,9 +146,6 @@ export class Track {
   }
   setPan(value: number, tick: number) {
     TrackEvents.setPan(value, tick)(this._events)
-  }
-  setProgramNumber(value: number) {
-    TrackEvents.setProgramNumber(value)(this._events)
   }
   setTempo = (bpm: number, tick: number) => {
     TrackEvents.setTempo(bpm, tick)(this._events)

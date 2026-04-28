@@ -1,4 +1,5 @@
 import { useCallback } from "react"
+import { BLEMIDI } from "web-ble-midi"
 import { useMobxGetter } from "./useMobxSelector"
 import { useStores } from "./useStores"
 
@@ -7,13 +8,19 @@ export interface Device {
   name: string
   isConnected: boolean
   isEnabled: boolean
+  isBluetooth?: boolean
 }
 
 export function useMIDIDevice() {
-  const { midiDeviceStore } = useStores()
+  const { midiDeviceStore, bluetoothMIDIDeviceStore } = useStores()
 
   const inputs = useMobxGetter(midiDeviceStore, "inputs")
   const outputs = useMobxGetter(midiDeviceStore, "outputs")
+  const btInputs = useMobxGetter(bluetoothMIDIDeviceStore, "inputs")
+  const btEnabledInputs = useMobxGetter(
+    bluetoothMIDIDeviceStore,
+    "enabledInputs",
+  )
 
   const enabledInputs = useMobxGetter(midiDeviceStore, "enabledInputs")
   const enabledOutputs = useMobxGetter(midiDeviceStore, "enabledOutputs")
@@ -23,12 +30,23 @@ export function useMIDIDevice() {
     "isFactorySoundEnabled",
   )
 
-  const inputDevices: Device[] = inputs.map((device) => ({
-    id: device.id,
-    name: formatName(device),
-    isConnected: device.state === "connected",
-    isEnabled: enabledInputs[device.id],
-  }))
+  // 通常MIDI + Bluetooth MIDI
+  const inputDevices: Device[] = [
+    ...inputs.map((device) => ({
+      id: device.id,
+      name: formatName(device),
+      isConnected: device.state === "connected",
+      isEnabled: enabledInputs[device.id],
+      isBluetooth: false,
+    })),
+    ...btInputs.map((d) => ({
+      id: d.id,
+      name: d.name ?? "Bluetooth MIDI Device",
+      isConnected: btInputs.some((i) => i.id === d.id),
+      isEnabled: btEnabledInputs[d.id],
+      isBluetooth: true,
+    })),
+  ]
 
   const outputDevices: Device[] = [
     {
@@ -40,6 +58,7 @@ export function useMIDIDevice() {
       name: formatName(device),
       isConnected: device.state === "connected",
       isEnabled: enabledOutputs[device.id],
+      isBluetooth: false,
     })),
   ]
 
@@ -47,13 +66,36 @@ export function useMIDIDevice() {
     inputDevices,
     outputDevices,
     get isLoading() {
-      return useMobxGetter(midiDeviceStore, "isLoading")
+      return (
+        useMobxGetter(midiDeviceStore, "isLoading") ||
+        useMobxGetter(bluetoothMIDIDeviceStore, "isLoading")
+      )
     },
     get requestError() {
-      return useMobxGetter(midiDeviceStore, "requestError")
+      return (
+        useMobxGetter(midiDeviceStore, "requestError") ||
+        useMobxGetter(bluetoothMIDIDeviceStore, "requestError")
+      )
     },
+    get midiInputRouting() {
+      return useMobxGetter(midiDeviceStore, "midiInputRouting")
+    },
+    isBluetoothSupported: BLEMIDI.isSupported(),
     requestMIDIAccess: midiDeviceStore.requestMIDIAccess,
-    setInputEnable: midiDeviceStore.setInputEnable,
+    requestBluetoothMIDIDevice: useCallback(() => {
+      bluetoothMIDIDeviceStore.requestDevice()
+    }, [bluetoothMIDIDeviceStore]),
+    setInputEnable: useCallback(
+      (deviceId: string, isEnabled: boolean) => {
+        if (btInputs.some((d) => d.id === deviceId)) {
+          bluetoothMIDIDeviceStore.setInputEnable(deviceId, isEnabled)
+        } else {
+          midiDeviceStore.setInputEnable(deviceId, isEnabled)
+        }
+      },
+      [midiDeviceStore, bluetoothMIDIDeviceStore, btInputs],
+    ),
+    setMidiInputRouting: midiDeviceStore.setMidiInputRouting,
     setOutputEnable: useCallback(
       (deviceId: string, isEnabled: boolean) => {
         if (deviceId === factorySound.id) {

@@ -2,6 +2,7 @@ import { Track, TrackColor, TrackEvent, TrackId } from "@signal-app/core"
 import { useCallback } from "react"
 import { TrackMute } from "../trackMute/TrackMute"
 import { useMobxGetter, useMobxSelector } from "./useMobxSelector"
+import { usePlayer } from "./usePlayer"
 import { useSong } from "./useSong"
 import { useTrackMute } from "./useTrackMute"
 
@@ -17,7 +18,11 @@ export function useTrack(id: TrackId) {
       return useMobxGetter(track, "isConductorTrack") ?? false
     },
     get programNumber() {
-      return useMobxGetter(track, "programNumber") ?? 0
+      const { position } = usePlayer()
+      return useMobxSelector(
+        () => track?.getProgramNumber(position) ?? 0,
+        [track, position],
+      )
     },
     get name() {
       return useMobxGetter(track, "name") ?? ""
@@ -73,12 +78,6 @@ export function useTrack(id: TrackId) {
     setVolume: useCallback(
       (volume: number, tick: number) => {
         track?.setVolume(volume, tick)
-      },
-      [track],
-    ),
-    setProgramNumber: useCallback(
-      (programNumber: number) => {
-        track?.setProgramNumber(programNumber)
       },
       [track],
     ),

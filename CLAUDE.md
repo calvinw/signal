@@ -216,7 +216,9 @@ signal/
 npm start           # Start dev server (turbo dev)
 npm run build       # Build all packages
 npm test            # Run tests
-npm run lint        # Run linter
+npm run lint        # Run linting with Biome
+npm run format      # Format code with Biome
+npm run check       # Run linting and formatting check with Biome
 ```
 
 ### MCP Server

@@ -1,13 +1,20 @@
 import {
-  BatchUpdateOperation,
+  type BatchUpdateOperation,
+  getProgramNumberEvent,
+  isProgramChangeEvent,
   Measure,
   programChangeMidiEvent,
-  timeSignatureMidiEvent,
   TrackEvent,
   TrackEventOf,
   TrackId,
+  timeSignatureMidiEvent,
 } from "@signal-app/core"
-import { AnyChannelEvent, AnyEvent, SetTempoEvent } from "midifile-ts"
+import type {
+  AnyChannelEvent,
+  AnyEvent,
+  ProgramChangeEvent,
+  SetTempoEvent,
+} from "midifile-ts"
 import { useCallback } from "react"
 import { ValueEventType } from "../entities/event/ValueEventType"
 import { addedSet, deletedSet } from "../helpers/set"
@@ -126,6 +133,36 @@ export const useUpdateValueEvents = (type: ValueEventType) => {
   )
 }
 
+export const useUpdateValueEventsWithCurve = (type: ValueEventType) => {
+  const { selectedTrackId } = usePianoRoll()
+  const { quantizeFloor, quantizeUnit } = useQuantizer()
+  const commands = useCommands()
+
+  return useCallback(
+    (
+      startValue: number,
+      endValue: number,
+      startTick: number,
+      endTick: number,
+      easing: (t: number) => number,
+    ) => {
+      commands.track.updateEventsInRangeWithEasing(
+        selectedTrackId,
+        ValueEventType.getEventPredicate(type),
+        ValueEventType.getEventFactory(type),
+        quantizeFloor,
+        quantizeUnit,
+        startValue,
+        endValue,
+        startTick,
+        endTick,
+        easing,
+      )
+    },
+    [commands, selectedTrackId, type, quantizeFloor, quantizeUnit],
+  )
+}
+
 /* note */
 
 export const useMuteNote = () => {
@@ -135,7 +172,7 @@ export const useMuteNote = () => {
 
   return useCallback(
     (noteNumber: number) => {
-      if (channel == undefined) {
+      if (channel === undefined) {
         return
       }
       stopNote({ channel, noteNumber })
@@ -160,23 +197,89 @@ export const useSetTrackName = () => {
   )
 }
 
-export const useSetTrackInstrument = (trackId: TrackId) => {
-  const { sendEvent } = usePlayer()
+export const useSetTrackInstrument = (trackId: TrackId, eventId?: number) => {
+  const { sendEvent, position } = usePlayer()
   const { pushHistory } = useHistory()
-  const { channel, setProgramNumber } = useTrack(trackId)
+  const { channel, getEvents, updateEvent, addEvent } = useTrack(trackId)
 
   return useCallback(
     (programNumber: number) => {
       pushHistory()
-      setProgramNumber(programNumber)
 
-      // 即座に反映する
-      // Reflect immediately
-      if (channel !== undefined) {
-        sendEvent(programChangeMidiEvent(0, channel, programNumber))
+      let targetEventId: number | undefined = eventId
+
+      if (eventId === undefined) {
+        // get last program change event before position
+        const programNumberEvent =
+          getProgramNumberEvent(getEvents(), position) ??
+          addEvent<TrackEventOf<ProgramChangeEvent>>({
+            ...programChangeMidiEvent(0, 0, programNumber),
+            tick: 0,
+          })
+        targetEventId = programNumberEvent?.id
+      }
+
+      if (targetEventId === undefined) {
+        return
+      }
+
+      const targetEvent = updateEvent<TrackEventOf<ProgramChangeEvent>>(
+        targetEventId,
+        {
+          value: programNumber,
+        },
+      )
+
+      if (targetEvent === null) {
+        return
+      }
+
+      const tick = targetEvent.tick
+
+      // If the player position is after the insertion position and there are no other program change events, reflect immediately
+      if (channel !== undefined && position >= tick) {
+        const hasOtherProgramChangeEvents = getEvents()
+          .filter(isProgramChangeEvent)
+          .some((e) => e.tick > tick)
+        if (!hasOtherProgramChangeEvents) {
+          sendEvent(programChangeMidiEvent(0, channel, programNumber))
+        }
       }
     },
-    [pushHistory, setProgramNumber, channel, sendEvent],
+    [
+      pushHistory,
+      channel,
+      sendEvent,
+      position,
+      getEvents,
+      eventId,
+      updateEvent,
+      addEvent,
+    ],
+  )
+}
+
+export const useInsertTrackInstrument = (trackId: TrackId) => {
+  const { sendEvent } = usePlayer()
+  const { pushHistory } = useHistory()
+  const { channel, addEvent } = useTrack(trackId)
+
+  return useCallback(
+    (programNumber: number, tick: number) => {
+      if (channel === undefined) {
+        return
+      }
+
+      pushHistory()
+
+      addEvent<TrackEventOf<ProgramChangeEvent>>({
+        ...programChangeMidiEvent(0, 0, programNumber),
+        tick,
+      })
+
+      sendEvent(programChangeMidiEvent(0, channel, programNumber))
+    },
+    [pushHistory, channel, sendEvent, addEvent],
   )
 }
 

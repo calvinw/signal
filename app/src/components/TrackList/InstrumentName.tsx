@@ -1,5 +1,6 @@
 import { FC } from "react"
 import { Localized } from "../../localize/useLocalization"
+import { categoryEmojis, getCategoryIndex } from "../../midi/GM"
 
 const NormalInstrumentName: FC<{ programNumber: number | undefined }> = ({
   programNumber,
@@ -300,4 +301,13 @@ export const InstrumentName: FC<{
     return <RhythmInstrumentName programNumber={programNumber} />
   }
   return <NormalInstrumentName programNumber={programNumber} />
+}
+
+export const InstrumentEmoji: FC<{
+  isRhythmTrack: boolean
+  programNumber: number
+}> = ({ isRhythmTrack, programNumber }) => {
+  return isRhythmTrack
+    ? "🥁"
+    : categoryEmojis[getCategoryIndex(programNumber ?? 0)]
 }

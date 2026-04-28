@@ -1,22 +1,12 @@
 import { isEqual, omit } from "lodash"
-import {
-  ControllerEvent,
-  ProgramChangeEvent,
-  SetTempoEvent,
-  TrackNameEvent,
-} from "midifile-ts"
+import { ControllerEvent, SetTempoEvent, TrackNameEvent } from "midifile-ts"
 import { transaction } from "mobx"
 import { TickOrderedArray } from "../../data/OrdererdArray/TickOrderedArray"
 import { bpmToUSecPerBeat } from "../../helpers/bpm"
-import {
-  programChangeMidiEvent,
-  setTempoMidiEvent,
-  trackNameMidiEvent,
-} from "../../midi/MidiEvent"
+import { setTempoMidiEvent, trackNameMidiEvent } from "../../midi/MidiEvent"
 import { isControllerEventWithType, isNoteEvent } from "./identify"
 import {
   getLast,
-  getProgramNumberEvent,
   getTempoEvent,
   getTrackNameEvent,
   isTickBefore,
@@ -143,19 +133,6 @@ export namespace TrackEvents {
   export const setPan =
     (value: number, tick: number) => (events: TickOrderedArray<TrackEvent>) =>
       setControllerValue(10, tick, value)(events)
-
-  export const setProgramNumber =
-    (value: number) => (events: TickOrderedArray<TrackEvent>) => {
-      const e = getProgramNumberEvent(events.getArray())
-      if (e !== undefined) {
-        updateEvent<TrackEventOf<ProgramChangeEvent>>(e.id, { value })(events)
-      } else {
-        addEvent<TrackEventOf<ProgramChangeEvent>>({
-          ...programChangeMidiEvent(0, 0, value),
-          tick: 0,
-        })(events)
-      }
-    }
 
   export const setTempo =
     (bpm: number, tick: number) => (events: TickOrderedArray<TrackEvent>) => {

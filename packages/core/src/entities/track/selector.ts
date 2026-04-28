@@ -41,8 +41,10 @@ export const getTimeSignatureEvent = (
   tick: number,
 ) => getLast(events.filter(isTimeSignatureEvent).filter(isTickBefore(tick)))
 
-export const getProgramNumberEvent = (events: readonly TrackEvent[]) =>
-  getLast(events.filter(isProgramChangeEvent))
+export const getProgramNumberEvent = (
+  events: readonly TrackEvent[],
+  tick: number,
+) => getLast(events.filter(isProgramChangeEvent).filter(isTickBefore(tick)))
 
 export const getEndOfTrackEvent = (events: readonly TrackEvent[]) =>
   getLast(events.filter(isEndOfTrackEvent))

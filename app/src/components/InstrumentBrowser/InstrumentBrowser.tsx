@@ -1,11 +1,16 @@
 import styled from "@emotion/styled"
-import { FC } from "react"
+import type { CheckedState } from "@radix-ui/react-checkbox"
+import type { TrackEventOf, TrackId } from "@signal-app/core"
+import type { ProgramChangeEvent } from "midifile-ts"
+import { type FC, useCallback, useEffect, useMemo, useState } from "react"
 import { useInstrumentBrowser } from "../../hooks/useInstrumentBrowser"
+import { useTrack } from "../../hooks/useTrack"
 import { Localized } from "../../localize/useLocalization"
 import { Dialog, DialogActions, DialogContent } from "../Dialog/Dialog"
 import { InstrumentName } from "../TrackList/InstrumentName"
 import { Button, PrimaryButton } from "../ui/Button"
 import { Checkbox } from "../ui/Checkbox"
+import { DropdownButton } from "../ui/DropdownButton"
 import { Label } from "../ui/Label"
 import { DrumKitCategoryName, FancyCategoryName } from "./CategoryName"
 import { SelectBox } from "./SelectBox"
@@ -36,18 +41,84 @@ const Footer = styled.div`
   margin-top: 1rem;
 `
 
-export const InstrumentBrowser: FC = () => {
+export interface InstrumentBrowserProps {
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+  trackId: TrackId
+  targetEventId?: number
+  showInsertButton?: boolean
+}
+
+export const InstrumentBrowser: FC<InstrumentBrowserProps> = ({
+  isOpen,
+  onOpenChange,
+  trackId,
+  targetEventId,
+  showInsertButton = false,
+}) => {
   const {
-    isOpen,
-    setOpen,
-    setting: { programNumber, isRhythmTrack },
+    programNumber: initialProgramNumber,
+    isRhythmTrack: initialIsRhythmTrack,
+    getEventById,
+    removeEvent,
+  } = useTrack(trackId)
+  const [setting, setSetting] = useState({
+    programNumber: initialProgramNumber ?? 0,
+    isRhythmTrack: initialIsRhythmTrack ?? false,
+  })
+  const { programNumber, isRhythmTrack } = setting
+  const {
     selectedCategoryIndex,
     categoryFirstProgramEvents,
     categoryInstruments,
-    onChangeInstrument: onChange,
+    insertInstrumentChangeAtCurrentPosition,
+    changeInstrument,
     onClickOK,
-    onChangeRhythmTrack,
-  } = useInstrumentBrowser()
+    changeRhythmTrack,
+  } = useInstrumentBrowser(setting, targetEventId)
+
+  const targetEvent = useMemo(() => {
+    if (targetEventId !== undefined) {
+      return getEventById(targetEventId) as
+        | TrackEventOf<ProgramChangeEvent>
+        | undefined
+    }
+    return undefined
+  }, [targetEventId, getEventById])
+
+  useEffect(() => {
+    if (isOpen) {
+      if (targetEvent) {
+        setSetting({
+          programNumber: targetEvent.value,
+          isRhythmTrack: initialIsRhythmTrack ?? false,
+        })
+      }
+    }
+  }, [isOpen, targetEvent, initialIsRhythmTrack])
+
+  const onChange = useCallback(
+    (programNumber: number) => {
+      setSetting({
+        programNumber,
+        isRhythmTrack,
+      })
+      changeInstrument(programNumber)
+    },
+    [isRhythmTrack, changeInstrument],
+  )
+
+  const handleChangeRhythmTrack = useCallback(
+    (state: CheckedState) => {
+      const isRhythmTrack = state === true
+      setSetting({
+        programNumber: 0, // reset program number when changing rhythm track
+        isRhythmTrack,
+      })
+      changeRhythmTrack(isRhythmTrack)
+    },
+    [changeRhythmTrack],
+  )
 
   const categoryOptions = categoryFirstProgramEvents.map((preset, i) => ({
     value: i,
@@ -63,8 +134,25 @@ export const InstrumentBrowser: FC = () => {
     label: <InstrumentName programNumber={p} isRhythmTrack={isRhythmTrack} />,
   }))
 
+  const handleClickOK = useCallback(() => {
+    onClickOK()
+    onOpenChange(false)
+  }, [onClickOK, onOpenChange])
+
+  const handleClickInsert = useCallback(() => {
+    insertInstrumentChangeAtCurrentPosition(programNumber)
+    onOpenChange(false)
+  }, [onOpenChange, insertInstrumentChangeAtCurrentPosition, programNumber])
+
+  const handleClickDelete = useCallback(() => {
+    if (targetEventId !== undefined) {
+      removeEvent(targetEventId)
+    }
+    onOpenChange(false)
+  }, [targetEventId, removeEvent, onOpenChange])
+
   return (
-    <Dialog open={isOpen} onOpenChange={setOpen}>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="InstrumentBrowser">
         <Finder>
           <Left>
@@ -91,18 +179,38 @@ export const InstrumentBrowser: FC = () => {
         <Footer>
           <Checkbox
             checked={isRhythmTrack}
-            onCheckedChange={(state) => onChangeRhythmTrack(state === true)}
+            onCheckedChange={handleChangeRhythmTrack}
             label={<Localized name="rhythm-track" />}
           />
         </Footer>
       </DialogContent>
       <DialogActions>
-        <Button onClick={() => setOpen(false)}>
+        {targetEventId !== undefined && (
+          <Button onClick={handleClickDelete} style={{ marginRight: "auto" }}>
+            <Localized name="delete" />
+          </Button>
+        )}
+        <Button onClick={() => onOpenChange(false)}>
           <Localized name="cancel" />
         </Button>
-        <PrimaryButton onClick={onClickOK}>
-          <Localized name="ok" />
-        </PrimaryButton>
+        {!showInsertButton && (
+          <PrimaryButton onClick={handleClickOK}>
+            <Localized name="ok" />
+          </PrimaryButton>
+        )}
+        {showInsertButton && (
+          <DropdownButton
+            onClick={handleClickOK}
+            actions={[
+              {
+                label: <Localized name="insert" />,
+                onClick: handleClickInsert,
+              },
+            ]}
+          >
+            <Localized name="ok" />
+          </DropdownButton>
+        )}
       </DialogActions>
     </Dialog>
   )

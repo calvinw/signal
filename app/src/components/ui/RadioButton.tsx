@@ -1,6 +1,6 @@
 import styled from "@emotion/styled"
 import CircleIcon from "mdi-react/CircleIcon"
-import { FC, ReactNode } from "react"
+import type { FC, ReactNode } from "react"
 
 const Button = styled.div`
   display: inline-flex;
@@ -21,34 +21,58 @@ const CheckIcon = styled(CircleIcon)`
 const RowWrapper = styled.div`
   display: flex;
   padding: 0.5rem 0;
-  align-items: center;
+  align-items: flex-start;
 
-  &:hover ${Button} {
+  &:hover [data-radio-button] {
     border-color: var(--color-text-secondary);
   }
 `
 
-const RowLabel = styled.span`
+const RadioIndicator = styled.div`
+  margin-top: 0.1rem;
+  flex-shrink: 0;
+`
+
+const LabelGroup = styled.div`
+  display: flex;
+  flex-direction: column;
   margin-left: 0.5rem;
+`
+
+const RowLabel = styled.span`
   font-size: 0.8rem;
+  color: var(--color-text);
+`
+
+const RowDescription = styled.span`
+  font-size: 0.75rem;
   color: var(--color-text-secondary);
+  opacity: 0.7;
+  margin-top: 0.15rem;
 `
 
 export interface RadioButtonProps {
   label: ReactNode
+  description?: ReactNode
   isSelected: boolean
   onClick: () => void
 }
 
 export const RadioButton: FC<RadioButtonProps> = ({
   label,
+  description,
   isSelected,
   onClick,
 }) => {
   return (
     <RowWrapper onClick={onClick}>
-      <Button>{isSelected && <CheckIcon />}</Button>
-      <RowLabel>{label}</RowLabel>
+      <RadioIndicator>
+        <Button data-radio-button>{isSelected && <CheckIcon />}</Button>
+      </RadioIndicator>
+      <LabelGroup>
+        <RowLabel>{label}</RowLabel>
+        {description && <RowDescription>{description}</RowDescription>}
+      </LabelGroup>
     </RowWrapper>
   )
 }

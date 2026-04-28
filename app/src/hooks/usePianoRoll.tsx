@@ -109,7 +109,7 @@ function PianoRollProviderInner({ children }: { children: React.ReactNode }) {
     midiMonitor.channel = selectedTrack?.channel ?? 0
   }, [midiMonitor, selectedTrack])
 
-  // sync MIDIRecorder channel with selected track
+  // sync MIDIRecorder trackId with selected track
   useEffect(() => {
     midiRecorder.trackId = selectedTrackId ?? UNASSIGNED_TRACK_ID
   }, [midiRecorder, selectedTrackId])

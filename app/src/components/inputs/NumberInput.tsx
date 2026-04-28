@@ -28,6 +28,7 @@ export const NumberInput: FC<NumberInputProps> = ({
 }) => {
   return (
     <NumericFormat
+      // @ts-expect-error - React 19 type compatibility issue with react-number-format
       value={value}
       onValueChange={({ floatValue }) => {
         if (floatValue !== undefined) {
@@ -41,6 +42,10 @@ export const NumberInput: FC<NumberInputProps> = ({
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           onEnter?.()
+        }
+        if (e.key === "Escape") {
+          // blur on escape to trigger onBlur validation
+          ;(e.target as HTMLElement).blur()
         }
       }}
       min={min}

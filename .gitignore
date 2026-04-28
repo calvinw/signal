@@ -50,3 +50,6 @@ dist
 # Claude Code configuration
 .claude/
 settings.json
+
+# JetBrains data
+.idea

@@ -1,12 +1,14 @@
-import { Player, SoundFont, SoundFontSynth } from "@signal-app/player"
 import { CommandService } from "@signal-app/core"
+import { Player, SoundFont, SoundFontSynth } from "@signal-app/player"
 import { isRunningInElectron } from "../helpers/platform"
 import { EventSource } from "../player/EventSource"
 import { AutoSaveService } from "../services/AutoSaveService"
 import { GroupOutput } from "../services/GroupOutput"
+import { MIDIActivity } from "../services/MIDIActivity"
 import { MIDIInput } from "../services/MIDIInput"
 import { MIDIMonitor } from "../services/MIDIMonitor"
 import { MIDIRecorder } from "../services/MIDIRecorder"
+import { BluetoothMIDIDeviceStore } from "./BluetoothMIDIDeviceStore"
 import { MIDIDeviceStore } from "./MIDIDeviceStore"
 import { registerReactions } from "./reactions"
 import { SongStore } from "./SongStore"
@@ -14,7 +16,7 @@ import { SoundFontStore } from "./SoundFontStore"
 
 export default class RootStore {
   readonly songStore = new SongStore()
-  readonly midiDeviceStore = new MIDIDeviceStore()
+  readonly midiDeviceStore: MIDIDeviceStore
   readonly player: Player
   readonly synth: SoundFontSynth
   readonly metronomeSynth: SoundFontSynth
@@ -22,7 +24,9 @@ export default class RootStore {
   readonly midiInput = new MIDIInput()
   readonly midiRecorder: MIDIRecorder
   readonly midiMonitor: MIDIMonitor
+  readonly midiActivity: MIDIActivity
   readonly soundFontStore: SoundFontStore
+  readonly bluetoothMIDIDeviceStore: BluetoothMIDIDeviceStore
   readonly autoSaveService: AutoSaveService
   readonly commands = new CommandService(this.songStore)
 
@@ -38,10 +42,22 @@ export default class RootStore {
 
     this.soundFontStore = new SoundFontStore(this.synth)
 
-    this.midiRecorder = new MIDIRecorder(this.songStore, this.player)
-    this.midiMonitor = new MIDIMonitor(this.player)
+    this.midiDeviceStore = new MIDIDeviceStore(this.midiInput)
+    this.bluetoothMIDIDeviceStore = new BluetoothMIDIDeviceStore(this.midiInput)
+    this.midiRecorder = new MIDIRecorder(
+      this.songStore,
+      this.player,
+      this.midiDeviceStore,
+    )
+    this.midiMonitor = new MIDIMonitor(this.player, this.midiDeviceStore)
+    this.midiActivity = new MIDIActivity(
+      this.midiDeviceStore,
+      this.midiRecorder,
+      this.songStore,
+    )
 
     this.midiInput.on("midiMessage", (e) => {
+      this.midiActivity.onMessage(e)
       this.midiMonitor.onMessage(e)
       this.midiRecorder.onMessage(e)
     })
@@ -56,6 +72,7 @@ export default class RootStore {
     await this.soundFontStore.init()
     this.setupMetronomeSynth()
     this.autoSaveService.startAutoSave()
+    this.bluetoothMIDIDeviceStore.autoConnect()
   }
 
   private async setupMetronomeSynth() {

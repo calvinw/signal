@@ -14,6 +14,7 @@ import { PianoRollProvider } from "../../hooks/usePianoRoll"
 import { StoreContext } from "../../hooks/useStores"
 import { TempoEditorProvider } from "../../hooks/useTempoEditor"
 import { initializeAPIBridge, stopAPIBridge } from "../../services/APIBridge"
+import { TrackMuteProvider } from "../../hooks/useTrackMute"
 import RootStore from "../../stores/RootStore"
 import { ThemeProvider } from "../../theme/ThemeProvider"
 import { ProgressDialog } from "../Dialog/ProgressDialog"
@@ -44,19 +45,21 @@ export function App() {
                   <ProgressProvider component={ProgressDialog}>
                     <LocalizationProvider>
                       <AuthProvider>
-                        <MCPProvider bridge={apiBridge}>
-                          <PianoRollProvider>
-                            <ArrangeViewProvider>
-                              <TempoEditorProvider>
-                                <GlobalCSS />
-                                {isRunningInElectron() && (
-                                  <ElectronCallbackHandler />
-                                )}
-                                <RootView />
-                              </TempoEditorProvider>
-                            </ArrangeViewProvider>
-                          </PianoRollProvider>
-                        </MCPProvider>
+                        <TrackMuteProvider>
+                          <MCPProvider bridge={apiBridge}>
+                            <PianoRollProvider>
+                              <ArrangeViewProvider>
+                                <TempoEditorProvider>
+                                  <GlobalCSS />
+                                  {isRunningInElectron() && (
+                                    <ElectronCallbackHandler />
+                                  )}
+                                  <RootView />
+                                </TempoEditorProvider>
+                              </ArrangeViewProvider>
+                            </PianoRollProvider>
+                          </MCPProvider>
+                        </TrackMuteProvider>
                       </AuthProvider>
                     </LocalizationProvider>
                   </ProgressProvider>

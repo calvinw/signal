@@ -208,12 +208,11 @@ export class Player {
 
     const timestamp = performance.now()
 
-    this.scheduler.loop =
-      this.loop !== null && this.loop.enabled ? this.loop : null
+    this.scheduler.loop = this.loop?.enabled ? this.loop : null
     const events = this.scheduler.readNextEvents(this._currentTempo, timestamp)
 
     events.forEach(({ event: e, timestamp: time }) => {
-      if (e.type === "channel") {
+      if (e.type === "channel" || e.type === "sysEx" || e.type === "dividedSysEx") {
         const delayTime = (time - timestamp) / 1000
         this.sendEvent(e, delayTime, timestamp, e.trackId)
       } else {

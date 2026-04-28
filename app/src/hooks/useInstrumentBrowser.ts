@@ -1,9 +1,8 @@
 import { programChangeMidiEvent } from "@signal-app/core"
-import { atom, useAtom, useAtomValue, useSetAtom } from "jotai"
 import { difference, range } from "lodash"
 import { useCallback, useMemo } from "react"
-import { useSetTrackInstrument } from "../actions"
-import { InstrumentSetting } from "../components/InstrumentBrowser/InstrumentBrowser"
+import { useInsertTrackInstrument, useSetTrackInstrument } from "../actions"
+import type { InstrumentSetting } from "../components/InstrumentBrowser/InstrumentBrowser"
 import { isNotUndefined } from "../helpers/array"
 import { getCategoryIndex } from "../midi/GM"
 import { usePianoRoll } from "./usePianoRoll"
@@ -12,15 +11,21 @@ import { usePreviewNote } from "./usePreviewNote"
 import { useSong } from "./useSong"
 import { useTrack } from "./useTrack"
 
-export function useInstrumentBrowser() {
+export function useInstrumentBrowser(
+  setting: InstrumentSetting,
+  targetEventId?: number,
+) {
   const { selectedTrackId } = usePianoRoll()
-  const [setting, setSetting] = useAtom(settingAtom)
-  const setOpen = useSetAtom(isOpenAtom)
   const { isRhythmTrack, channel, setChannel } = useTrack(selectedTrackId)
   const { isPlaying, sendEvent } = usePlayer()
-  const setTrackInstrumentAction = useSetTrackInstrument(selectedTrackId)
+  const setTrackInstrumentAction = useSetTrackInstrument(
+    selectedTrackId,
+    targetEventId,
+  )
+  const insertTrackInstrumentAction = useInsertTrackInstrument(selectedTrackId)
   const { tracks } = useSong()
   const { previewNoteOn } = usePreviewNote()
+  const { position } = usePlayer()
 
   const changeRhythmTrack = useCallback(
     (newRhythmTrack: boolean) => {
@@ -43,10 +48,6 @@ export function useInstrumentBrowser() {
           setChannel(availableChannel)
         }
       }
-      setSetting({
-        programNumber: 0, // reset program number when changing rhythm track
-        isRhythmTrack: newRhythmTrack,
-      })
       setTrackInstrumentAction(0)
     },
     [
@@ -54,27 +55,19 @@ export function useInstrumentBrowser() {
       selectedTrackId,
       setChannel,
       tracks,
-      setSetting,
       setTrackInstrumentAction,
     ],
   )
 
   const onClickOK = useCallback(() => {
     setTrackInstrumentAction(setting.programNumber)
-    setOpen(false)
-  }, [setTrackInstrumentAction, setting, setOpen])
+  }, [setTrackInstrumentAction, setting])
 
   const selectedCategoryIndex = isRhythmTrack
     ? 0
     : getCategoryIndex(setting.programNumber)
 
   return {
-    setting,
-    setSetting,
-    get isOpen() {
-      return useAtomValue(isOpenAtom)
-    },
-    setOpen,
     selectedCategoryIndex,
     get categoryFirstProgramEvents() {
       return useMemo(() => {
@@ -95,7 +88,7 @@ export function useInstrumentBrowser() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [selectedCategoryIndex, setting.isRhythmTrack])
     },
-    onChangeInstrument: useCallback(
+    changeInstrument: useCallback(
       (programNumber: number) => {
         if (channel === undefined) {
           return
@@ -108,26 +101,16 @@ export function useInstrumentBrowser() {
             previewNoteOn(64, 500)
           }
         }
-        setSetting({
-          programNumber,
-          isRhythmTrack: setting.isRhythmTrack,
-        })
       },
-      [setSetting, setting, channel, previewNoteOn, sendEvent, isPlaying],
+      [channel, previewNoteOn, sendEvent, isPlaying, setting],
     ),
-    onChangeRhythmTrack: useCallback(
-      (state: boolean) => {
-        changeRhythmTrack(state)
+    changeRhythmTrack,
+    insertInstrumentChangeAtCurrentPosition: useCallback(
+      (programNumber: number) => {
+        insertTrackInstrumentAction(programNumber, position)
       },
-      [changeRhythmTrack],
+      [insertTrackInstrumentAction, position],
     ),
     onClickOK,
   }
 }
-
-// atoms
-const isOpenAtom = atom<boolean>(false)
-const settingAtom = atom<InstrumentSetting>({
-  isRhythmTrack: false,
-  programNumber: 0,
-})

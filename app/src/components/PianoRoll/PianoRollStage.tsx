@@ -4,6 +4,7 @@ import { Layout } from "../../Constants"
 import { useKeyScroll } from "../../hooks/useKeyScroll"
 import { Positioned } from "../ui/Positioned"
 import CanvasPianoRuler from "./CanvasPianoRuler"
+import { InstrumentLane } from "./InstrumentLane"
 import { PianoKeys } from "./PianoKeys"
 import { PianoRollCanvas } from "./PianoRollCanvas/PianoRollCanvas"
 
@@ -42,6 +43,9 @@ export const PianoRollStage: FC<PianoRollStageProps> = ({
       <RulerPosition left={keyWidth}>
         <CanvasPianoRuler />
       </RulerPosition>
+      <Positioned top={Layout.rulerHeight} left={keyWidth}>
+        <InstrumentLane width={width} />
+      </Positioned>
     </Container>
   )
 }

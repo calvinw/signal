@@ -130,12 +130,6 @@ describe("Track", () => {
     track.setVolume(50, 1)
     expect(track.getVolume(1)).toBe(50)
   })
-  it("should update program number after setProgramNumber", () => {
-    const track = emptyTrack(1)
-    expect(track.programNumber).toBe(0)
-    track.setProgramNumber(100)
-    expect(track.programNumber).toBe(100)
-  })
   it("should update color after setColor", () => {
     const track = emptyTrack(1)
     expect(track.color).toBe(undefined)

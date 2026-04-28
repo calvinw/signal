@@ -1,6 +1,5 @@
 import styled from "@emotion/styled"
-import { FC } from "react"
-import { InstrumentBrowser } from "../InstrumentBrowser/InstrumentBrowser"
+import type { FC } from "react"
 import { AutoScrollButton } from "../Toolbar/AutoScrollButton"
 import { QuantizeSelector } from "../Toolbar/QuantizeSelector/QuantizeSelector"
 import { Toolbar } from "../Toolbar/Toolbar"
@@ -32,7 +31,6 @@ export const PianoRollToolbar: FC = () => {
       <Spacer />
 
       <InstrumentButton />
-      <InstrumentBrowser />
 
       <VolumeSlider />
       <PanSlider />
