@@ -79,6 +79,7 @@ When Signal opens, look for the **session ID** displayed in the header (e.g., `a
                             │  │ - WebSocket client          ││
                             │  │ - Session ID management     ││
                             │  │ - Note time/tick conversion ││
+                            │  │ - Track/instrument control  ││
                             │  └─────────────────────────────┘│
                             │                                  │
                             │  Piano Roll (WebGL)              │
@@ -99,11 +100,13 @@ Each browser tab gets a unique 4-character session ID (e.g., `abc1`). This enabl
 All tools require a `session_id` parameter to identify which browser to control.
 
 ### `get_piano_roll_state(session_id)`
-Read all notes from the piano roll.
+Read all notes and tracks from the piano roll.
 
 ```python
 get_piano_roll_state("abc1")
-# Returns: tracks, notes with midi/time/duration/velocity, timebase
+# Returns: tracks with id, name, channel, programNumber, notes
+# Each note: midi, time, duration, velocity
+# Also returns: timebase, song name
 ```
 
 ### `send_notes(session_id, notes, mode, track_id)`
@@ -119,6 +122,9 @@ send_notes("abc1", [
 
 # Replace all notes with new ones
 send_notes("abc1", [...], mode="replace")
+
+# Send to a specific track
+send_notes("abc1", [...], track_id=2)
 ```
 
 ### `delete_notes(session_id, notes, track_id)`
@@ -133,6 +139,23 @@ Clear all notes from a track.
 
 ```python
 clear_notes("abc1")
+clear_notes("abc1", track_id=2)
+```
+
+### `create_track(session_id, name, program_number)`
+Create a new track with an optional name and GM instrument.
+
+```python
+# Create a violin track
+create_track("abc1", name="Violin", program_number=40)
+# Returns: trackId, channel, name, programNumber
+```
+
+### `set_instrument(session_id, track_id, program_number)`
+Set the GM instrument on an existing track.
+
+```python
+set_instrument("abc1", track_id=2, program_number=32)  # Acoustic Bass
 ```
 
 ### `check_connection(session_id)`
@@ -179,6 +202,24 @@ All time values use **quarter notes** (beats), not ticks:
 - Default: `0.8`
 - Converted internally to MIDI 0-127
 
+### GM Instrument Numbers (Common)
+
+| Program | Instrument |
+|---------|-----------|
+| 0 | Acoustic Grand Piano |
+| 24 | Classical Guitar |
+| 25 | Acoustic Guitar |
+| 32 | Acoustic Bass |
+| 33 | Electric Bass |
+| 40 | Violin |
+| 41 | Viola |
+| 42 | Cello |
+| 48 | String Ensemble |
+| 52 | Choir Aahs |
+| 56 | Trumpet |
+| 65 | Alto Sax |
+| 73 | Flute |
+
 ---
 
 ## File Structure
@@ -199,11 +240,12 @@ signal/
 │   └── pyproject.toml            # Python dependencies
 │
 ├── packages/                     # Shared packages
-│   ├── @signal-app/player        # Audio engine
+│   ├── @signal-app/player        # Audio engine (SpessaSynth)
 │   ├── @signal-app/core          # Core types and utilities
 │   └── ...
 │
-└── start-with-mcp.sh             # Legacy startup script
+├── Dockerfile                    # Production multi-stage build
+└── requirements.txt              # Python dependencies for Docker
 ```
 
 ---
@@ -233,10 +275,10 @@ uv pip install -e .                           # Install in dev mode
 
 ```bash
 # Health check
-curl http://localhost:3001/api/health
+curl http://localhost:8080/api/health
 
-# List active sessions
-curl http://localhost:3001/api/status
+# Status
+curl http://localhost:8080/api/status
 ```
 
 ---
@@ -248,7 +290,7 @@ curl http://localhost:3001/api/status
 1. **AI sends MCP request** to `/mcp` endpoint
 2. **MCP Server** receives request, looks up session WebSocket
 3. **Server sends WebSocket message** to Signal browser
-4. **APIBridge.ts** in browser handles action (addNotes, deleteNotes, etc.)
+4. **APIBridge.ts** in browser handles action (addNotes, deleteNotes, createTrack, etc.)
 5. **Browser sends response** back via WebSocket
 6. **MCP Server** returns response to AI
 
@@ -265,29 +307,30 @@ Formula: `ticks = quarterNotes * timebase` (typically timebase=480)
 ## Example Session
 
 ```
-AI: "Add a C major chord progression"
+AI: "Create a string quartet arrangement"
 
 1. AI calls: check_connection("abc1")
    → Verifies browser is connected
 
 2. AI calls: get_piano_roll_state("abc1")
-   → Gets current state, learns timebase
+   → Gets current tracks, notes, programNumbers, timebase
 
-3. AI calls: send_notes("abc1", [
-     {"midi": 60, "duration": 4, "time": 0},
-     {"midi": 64, "duration": 4, "time": 0},
-     {"midi": 67, "duration": 4, "time": 0}
-   ])
-   → C major chord appears in piano roll
+3. AI calls: create_track("abc1", name="Cello", program_number=42)
+   → New Cello track created, returns trackId=2
 
-4. AI calls: send_notes("abc1", [
-     {"midi": 65, "duration": 4, "time": 4},
-     {"midi": 69, "duration": 4, "time": 4},
-     {"midi": 72, "duration": 4, "time": 4}
-   ])
-   → F major chord at beat 5
+4. AI calls: create_track("abc1", name="Viola", program_number=41)
+   → New Viola track created, returns trackId=3
 
-User sees chords in Signal, can play them back!
+5. AI calls: set_instrument("abc1", track_id=1, program_number=40)
+   → Sets existing track 1 to Violin
+
+6. AI calls: send_notes("abc1", [...], track_id=1)
+   → Violin melody appears in piano roll
+
+7. AI calls: send_notes("abc1", [...], track_id=2)
+   → Cello bass line appears
+
+User hears a full string quartet!
 ```
 
 ---
@@ -300,9 +343,13 @@ User sees chords in Signal, can play them back!
 - Ensure the browser tab with Signal is still open and connected
 
 ### WebSocket won't connect
-- Ensure MCP server is running on port 3001
+- Ensure MCP server is running on port 8080
 - Check browser console for connection errors
 - Verify no firewall blocking WebSocket connections
+
+### MCP tools stale after server restart
+- The Claude Code MCP session expires when the server restarts
+- Run `/mcp` in Claude Code to reconnect, or start a new session
 
 ### Notes not appearing
 - Confirm session ID is correct
@@ -310,7 +357,7 @@ User sees chords in Signal, can play them back!
 - Ensure time/duration are positive numbers
 
 ### Port conflicts
-- MCP Server: Change with `PORT=3002 uv run python signal_mcp_server.py`
+- MCP Server: Change with `PORT=9000 uv run python signal_mcp_server.py`
 - Signal App: Configured in vite config
 
 ---
@@ -321,7 +368,7 @@ User sees chords in Signal, can play them back!
 |-----------|------------|
 | Signal App | React 18, TypeScript, MobX, Vite |
 | Piano Roll | WebGL |
-| Audio | Web Audio API, SoundFont synthesis |
+| Audio | Web Audio API, SpessaSynth |
 | MCP Server | Python, FastMCP, FastAPI, Uvicorn |
 | WebSocket | Python (Starlette), TypeScript (native) |
 | Monorepo | Turbo, npm workspaces |
@@ -402,9 +449,10 @@ When helping users with this project:
 
 1. **Always get session ID first** - Ask user for their session ID from Signal's header
 2. **Check connection** before making changes - Use `check_connection(session_id)`
-3. **Get state first** - Use `get_piano_roll_state(session_id)` to see current notes
+3. **Get state first** - Use `get_piano_roll_state(session_id)` to see current tracks, notes, and instruments
 4. **Use quarter notes** - All time values are in quarter notes, not ticks
 5. **Validate responses** - Check `success` field in returned JSON
+6. **Match harmony to melody** - When adding accompaniment, analyze melody pitches before choosing chords
 
 ### Common Patterns
 
@@ -412,16 +460,24 @@ When helping users with this project:
 # Initialize
 session = "abc1"  # Get from user
 check_connection(session)
-state = get_piano_roll_state(session)
+state = get_piano_roll_state(session)  # Returns programNumber per track
 
-# Add chord
+# Add chord to specific track
 send_notes(session, [
     {"midi": 60, "duration": 2, "time": 0},
     {"midi": 64, "duration": 2, "time": 0},
     {"midi": 67, "duration": 2, "time": 0}
-])
+], track_id=1)
 
-# Modify (delete + add)
+# Create a new instrument track
+result = create_track(session, name="Flute", program_number=73)
+track_id = result["data"]["trackId"]
+send_notes(session, [...], track_id=track_id)
+
+# Change instrument on existing track
+set_instrument(session, track_id=2, program_number=32)  # Acoustic Bass
+
+# Modify notes (delete + add)
 delete_notes(session, [{"midi": 67, "time": 0}])
 send_notes(session, [{"midi": 69, "duration": 2, "time": 0}])
 

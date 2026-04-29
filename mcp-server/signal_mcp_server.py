@@ -328,6 +328,86 @@ async def clear_notes(session_id: str, track_id: Optional[int] = None) -> str:
 
 
 @mcp.tool()
+async def create_track(
+    session_id: str,
+    name: Optional[str] = None,
+    program_number: int = 0
+) -> str:
+    """
+    Create a new track in Signal's piano roll.
+
+    Args:
+        session_id: The session ID from the Signal browser app (e.g., "abc1")
+        name: Optional track name (e.g. "Strings", "Bass", "Lead")
+        program_number: GM instrument number 0-127 (default 0 = Acoustic Grand Piano)
+            Common values: 0=Piano, 25=Acoustic Guitar, 32=Acoustic Bass,
+            40=Violin, 48=String Ensemble, 56=Trumpet, 65=Alto Sax, 73=Flute
+
+    Returns:
+        JSON with the new track's id, channel, name, and program_number
+    """
+    if not manager.session_exists(session_id):
+        return json.dumps({
+            "success": False,
+            "error": f"Session '{session_id}' not found. Make sure Signal is open with this session ID."
+        })
+
+    try:
+        request_id = f"createtrack_{random.randint(1000, 9999)}"
+        payload = {"programNumber": program_number}
+        if name is not None:
+            payload["name"] = name
+
+        message = {"id": request_id, "action": "createTrack", "payload": payload}
+
+        response = await manager.send_and_wait(session_id, message)
+        return json.dumps(response, indent=2)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+@mcp.tool()
+async def set_instrument(
+    session_id: str,
+    track_id: int,
+    program_number: int
+) -> str:
+    """
+    Set the GM instrument for an existing track.
+
+    Args:
+        session_id: The session ID from the Signal browser app (e.g., "abc1")
+        track_id: The track ID (get from get_piano_roll_state)
+        program_number: GM instrument number 0-127
+            Common values: 0=Acoustic Grand Piano, 25=Acoustic Guitar,
+            32=Acoustic Bass, 40=Violin, 48=String Ensemble,
+            56=Trumpet, 65=Alto Sax, 73=Flute
+
+    Returns:
+        Status of the instrument change
+    """
+    if not manager.session_exists(session_id):
+        return json.dumps({
+            "success": False,
+            "error": f"Session '{session_id}' not found. Make sure Signal is open with this session ID."
+        })
+
+    if not (0 <= program_number <= 127):
+        return json.dumps({"success": False, "error": "program_number must be 0-127"})
+
+    try:
+        request_id = f"setinstr_{random.randint(1000, 9999)}"
+        payload = {"trackId": track_id, "programNumber": program_number}
+
+        message = {"id": request_id, "action": "setInstrument", "payload": payload}
+
+        response = await manager.send_and_wait(session_id, message)
+        return json.dumps(response, indent=2)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+@mcp.tool()
 async def check_connection(session_id: str) -> str:
     """
     Check connection status for a specific session.

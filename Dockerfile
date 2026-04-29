@@ -10,16 +10,22 @@ WORKDIR /app
 # Install build dependencies (needed for native modules)
 RUN apk add --no-cache python3 make g++
 
-# Copy package files
+# Copy package files (all workspace package.json files needed for npm ci)
 COPY package.json package-lock.json turbo.json ./
 COPY app/package.json ./app/
-COPY packages/ ./packages/
+COPY packages/api/package.json ./packages/api/
+COPY packages/community/package.json ./packages/community/
+COPY packages/core/package.json ./packages/core/
+COPY packages/dialog-hooks/package.json ./packages/dialog-hooks/
+COPY packages/firebaseui-web-react/package.json ./packages/firebaseui-web-react/
+COPY packages/player/package.json ./packages/player/
 
 # Install dependencies
 RUN npm ci
 
 # Copy source code
 COPY app/ ./app/
+COPY packages/ ./packages/
 
 # Build for production
 RUN npm run build:app

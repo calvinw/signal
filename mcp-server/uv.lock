@@ -1162,7 +1162,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.104.0" },
-    { name = "fastmcp", specifier = ">=2.0.0" },
+    { name = "fastmcp", specifier = ">=2.3.0" },
     { name = "uvicorn", specifier = ">=0.24.0" },
 ]
 

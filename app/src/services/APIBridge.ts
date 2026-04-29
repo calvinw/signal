@@ -7,7 +7,7 @@
  */
 
 import RootStore from "../stores/RootStore"
-import { NoteEvent, TrackId } from "@signal-app/core"
+import { emptyTrack, NoteEvent, programChangeMidiEvent, TrackId } from "@signal-app/core"
 
 export interface NoteInput {
   midi: number          // MIDI note number (0-127)
@@ -159,6 +159,7 @@ export class APIBridge {
             id: track.id,
             name: track.name,
             channel: track.channel,
+            programNumber: track.getProgramNumber(0) ?? 0,
             noteCount: notes.length,
             notes
           }
@@ -300,6 +301,54 @@ export class APIBridge {
   }
 
   /**
+   * Create a new track with an optional name and GM program number
+   */
+  createTrack(name?: string, programNumber?: number): APIResponse {
+    try {
+      const song = this.rootStore.songStore.song
+      const usedChannels = new Set(
+        song.tracks.map(t => t.channel).filter((c): c is number => c !== undefined)
+      )
+      let channel = 0
+      for (let i = 0; i <= 15; i++) {
+        if (i !== 9 && !usedChannels.has(i)) { channel = i; break }
+      }
+      const track = emptyTrack(channel)
+      if (name) track.setName(name)
+      if (programNumber !== undefined) {
+        track.createOrUpdate({ ...programChangeMidiEvent(0, channel, programNumber), tick: 0 })
+      }
+      song.addTrack(track)
+      return {
+        success: true,
+        data: {
+          trackId: track.id,
+          channel,
+          name: track.name ?? "",
+          programNumber: track.getProgramNumber(0) ?? 0
+        }
+      }
+    } catch (error) {
+      return { success: false, error: `Failed to create track: ${error}` }
+    }
+  }
+
+  /**
+   * Set the GM instrument (program number 0-127) on a track
+   */
+  setInstrument(trackId: number, programNumber: number): APIResponse {
+    try {
+      const track = this.getTrack(trackId)
+      if (!track) return { success: false, error: "Track not found" }
+      if (track.channel === undefined) return { success: false, error: "Cannot set instrument on conductor track" }
+      track.createOrUpdate({ ...programChangeMidiEvent(0, track.channel, programNumber), tick: 0 })
+      return { success: true, data: { trackId, programNumber } }
+    } catch (error) {
+      return { success: false, error: `Failed to set instrument: ${error}` }
+    }
+  }
+
+  /**
    * Handle incoming WebSocket messages
    */
   private handleMessage(message: WSMessage): APIResponse {
@@ -312,6 +361,16 @@ export class APIBridge {
         return this.deleteNotes(message.payload as DeleteNotesRequest)
       case "clearNotes":
         return this.clearNotes((message.payload as { trackId?: number })?.trackId)
+      case "createTrack":
+        return this.createTrack(
+          (message.payload as any)?.name,
+          (message.payload as any)?.programNumber
+        )
+      case "setInstrument":
+        return this.setInstrument(
+          (message.payload as any)?.trackId,
+          (message.payload as any)?.programNumber
+        )
       case "health":
         return { success: true, data: { status: "connected" } }
       default:
