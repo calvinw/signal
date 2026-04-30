@@ -27,6 +27,10 @@ export interface DeleteNotesRequest {
   trackId?: number
 }
 
+interface DeleteTrackRequest {
+  trackId?: number
+}
+
 export interface APIResponse {
   success: boolean
   data?: unknown
@@ -349,6 +353,30 @@ export class APIBridge {
   }
 
   /**
+   * Delete a track by ID
+   */
+  deleteTrack(trackId?: number): APIResponse {
+    try {
+      if (trackId === undefined) return { success: false, error: "trackId is required" }
+
+      const song = this.rootStore.songStore.song
+      const track = song.getTrack(trackId as TrackId)
+      if (!track) return { success: false, error: "Track not found" }
+      if (track.isConductorTrack) return { success: false, error: "Cannot delete conductor track" }
+
+      const trackCount = song.tracks.filter(t => !t.isConductorTrack).length
+      if (trackCount <= 1) {
+        return { success: false, error: "Cannot delete the last track" }
+      }
+
+      song.removeTrack(track.id)
+      return { success: true, data: { trackId: track.id } }
+    } catch (error) {
+      return { success: false, error: `Failed to delete track: ${error}` }
+    }
+  }
+
+  /**
    * Handle incoming WebSocket messages
    */
   private handleMessage(message: WSMessage): APIResponse {
@@ -371,6 +399,8 @@ export class APIBridge {
           (message.payload as any)?.trackId,
           (message.payload as any)?.programNumber
         )
+      case "deleteTrack":
+        return this.deleteTrack((message.payload as DeleteTrackRequest)?.trackId)
       case "health":
         return { success: true, data: { status: "connected" } }
       default:

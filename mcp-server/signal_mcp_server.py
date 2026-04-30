@@ -408,6 +408,36 @@ async def set_instrument(
 
 
 @mcp.tool()
+async def delete_track(session_id: str, track_id: int) -> str:
+    """
+    Delete a track from Signal's piano roll.
+
+    Args:
+        session_id: The session ID from the Signal browser app (e.g., "abc1")
+        track_id: The track ID to delete (get from get_piano_roll_state)
+
+    Returns:
+        Status of the deletion
+    """
+    if not manager.session_exists(session_id):
+        return json.dumps({
+            "success": False,
+            "error": f"Session '{session_id}' not found. Make sure Signal is open with this session ID."
+        })
+
+    try:
+        request_id = f"deletetrack_{random.randint(1000, 9999)}"
+        payload = {"trackId": track_id}
+
+        message = {"id": request_id, "action": "deleteTrack", "payload": payload}
+
+        response = await manager.send_and_wait(session_id, message)
+        return json.dumps(response, indent=2)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)})
+
+
+@mcp.tool()
 async def check_connection(session_id: str) -> str:
     """
     Check connection status for a specific session.
