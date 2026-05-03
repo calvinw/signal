@@ -11,4 +11,5 @@ export interface SynthOutput {
     timestampNow: number,
     trackId?: number,
   ): void
+  stopAll?(): void
 }

@@ -125,4 +125,8 @@ export class SoundFontSynth implements SynthOutput {
   activate() {
     this.context.resume()
   }
+
+  stopAll() {
+    this.synth?.stopAll(true)
+  }
 }

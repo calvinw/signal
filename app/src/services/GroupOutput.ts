@@ -48,4 +48,8 @@ export class GroupOutput implements SynthOutput {
       synth.sendEvent(event, delayTime, timestampNow, trackId),
     )
   }
+
+  stopAll(): void {
+    this.outputs.forEach((o) => o.synth.stopAll?.())
+  }
 }

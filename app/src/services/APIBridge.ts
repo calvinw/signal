@@ -220,6 +220,9 @@ export class APIBridge {
         addedNotes.push(newNote.id)
       }
 
+      // Flush any pre-scheduled audio so stale notes don't play after edits
+      this.rootStore.player.flushScheduledEvents()
+
       return {
         success: true,
         data: {
@@ -264,6 +267,10 @@ export class APIBridge {
         }
       }
 
+      if (deletedCount > 0) {
+        this.rootStore.player.flushScheduledEvents()
+      }
+
       return {
         success: true,
         data: { notesDeleted: deletedCount }
@@ -291,6 +298,7 @@ export class APIBridge {
       )
       const count = noteEvents.length
       track.removeEvents(noteEvents.map(n => n.id))
+      this.rootStore.player.flushScheduledEvents()
 
       return {
         success: true,

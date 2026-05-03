@@ -111,6 +111,18 @@ export class Player {
     }
   }
 
+  // Cancel all queued audio events and reset the scheduler lookahead so
+  // changes to track data (note edits, replace mode) take effect immediately.
+  flushScheduledEvents = () => {
+    this.output.stopAll?.()
+    if (this.scheduler) {
+      this.scheduler.seek(this._currentTick)
+    }
+    if (this.isPlaying) {
+      this.sendCurrentStateEvents()
+    }
+  }
+
   allSoundsOffExclude = (channel: number) => {
     for (const ch of range(0, this.numberOfChannels)) {
       if (ch !== channel) {
